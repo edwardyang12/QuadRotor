@@ -1,0 +1,174 @@
+import gym
+from gym import spaces
+import numpy as np
+from mpl_toolkits import mplot3d
+import matplotlib.pyplot as plt
+
+# Simulation parameters
+g = 9.81
+T = 5
+
+# dimensions of quadrotor
+m = 0.2
+x = 0.44
+y = 0.44
+z = 0.12
+
+class QuadRotorEnv(gym.Env):
+
+    def __init__(self, target_pos):
+
+        # position of quadrotor
+        self.x_pos = -5
+        self.y_pos = -5
+        self.z_pos = 5
+
+        # velocity of quadrotor
+        self.x_vel = 0
+        self.y_vel = 0
+        self.z_vel = 0
+
+        # acceleration of quadrotor
+        self.x_acc = 0
+        self.y_acc = 0
+        self.z_acc = 0
+
+        # orientation of quadrotor
+        self.roll = 0
+        self.pitch = 0
+        self.yaw = 0
+
+        # spin of quadrotor
+        self.roll_vel = 0
+        self.pitch_vel = 0
+        self.yaw_vel = 0
+
+        self.target_pos = target_pos
+
+        # time
+        self.dt = 0.1
+
+        # total run time
+        self.t = 0
+
+        self.max_acc = 3
+
+        self.action_space = spaces.Box(
+            # acceleration in x,y,z
+            low = np.array([-self.max_acc,-self.max_acc,-self.max_acc]),
+            high = np.array([self.max_acc, self.max_acc, self.max_acc]),
+            dtype=np.float32
+        )
+
+        self.observation_space = spaces.Box(
+            # position, velocity, acceleration, rotation_velocity
+            low = np.array([[0,0,0],[-20,-20,-20],[-3,-3,-3],[-10,-10,-10]]),
+            high = np.array([[100,100,100],[20,20,20],[3,3,3],[10,10,10]]),
+            dtype=np.float32
+        )
+
+    def step(self, action):
+
+        #action: accelarations of each coordinates.
+        acc = action
+
+        x_acc = acc[0]
+        y_acc = acc[1]
+        z_acc = acc[2]
+
+        x_acc = np.clip(x_acc, -self.max_acc, self.max_acc)
+        y_acc = np.clip(y_acc, -self.max_acc, self.max_acc)
+        z_acc = np.clip(z_acc, -self.max_acc, self.max_acc)
+
+        self.x_vel += x_acc * self.dt
+        self.y_vel += y_acc * self.dt
+        self.z_vel += z_acc * self.dt
+        self.x_pos += self.x_vel * self.dt
+        self.y_pos += self.y_vel * self.dt
+        self.z_pos += self.z_vel * self.dt
+
+        xy_acc = np.sqrt(x_acc**2 + y_acc**2)
+        yz_acc = np.sqrt(y_acc**2 + z_acc**2)
+        xz_acc = np.sqrt(x_acc**2 + z_acc**2)
+
+        # adjusting yaw by assuming centripetal motion
+        xy_angleVel = np.sqrt(xy_acc / np.sqrt(x**2 + y**2))
+        if(x_acc * y_acc <0):
+            xy_angleVel = -xy_angleVel
+        self.yaw_vel += xy_angleVel
+
+        # adjusting roll by assuming centripetal motion
+        yz_angleVel = np.sqrt(yz_acc / np.sqrt(z**2 + y**2))
+        if(z_acc * y_acc <0):
+            yz_angleVel = -yz_angleVel
+        self.roll_vel += yz_angleVel
+
+        # adjusting pitch by assuming centripetal motion
+        xz_angleVel = np.sqrt(xz_acc / np.sqrt(z**2 + x**2))
+        if(z_acc * x_acc <0):
+            xz_angleVel = -xz_angleVel
+        self.pitch_vel += xz_angleVel
+
+        self.yaw += self.yaw_vel * self.dt
+        self.roll += self.roll_vel * self.dt
+        self.pitch += self.pitch_vel * self.dt
+
+        self.t += self.dt
+
+        return self._get_obs(), self._get_reward()
+
+    def _get_obs(self):
+        pos_array = [self.target_pos[0] - self.x_pos, self.target_pos[1] - self.y_pos, self.target_pos[2] - self.z_pos]
+        vel_array = [self.x_vel, self.y_vel, self.z_vel]
+        acc_array = [self.x_acc, self.y_acc, self.z_acc]
+        rotVel_array = [self.roll_vel, self.pitch_vel, self.yaw_vel]
+        return [pos_array, vel_array, acc_array, rotVel_array]
+
+    def _get_reward(self):
+        pos_r = 4e-3 * np.linalg.norm([self.target_pos[0] - self.x_pos, self.target_pos[1] - self.y_pos, self.target_pos[2] - self.z_pos])
+        vel_r = 5e-4 * np.linalg.norm([self.x_vel, self.y_vel, self.z_vel])
+        acc_r = 2e-4 * np.linalg.norm([self.x_acc, self.y_acc, self.z_acc])
+        rotvel_r = 3e-4 * np.linalg.norm([self.roll_vel, self.pitch_vel, self.yaw_vel])
+        return pos_r + vel_r + acc_r + rotvel_r
+
+    def reset(self):
+        # position of quadrotor
+        self.x_pos = -5
+        self.y_pos = -5
+        self.z_pos = 5
+
+        # velocity of quadrotor
+        self.x_vel = 0
+        self.y_vel = 0
+        self.z_vel = 0
+
+        # acceleration of quadrotor
+        self.x_acc = 0
+        self.y_acc = 0
+        self.z_acc = 0
+
+        # orientation of quadrotor
+        self.roll = 0
+        self.pitch = 0
+        self.yaw = 0
+
+        # spin of quadrotor
+        self.roll_vel = 0
+        self.pitch_vel = 0
+        self.yaw_vel = 0
+
+        # time
+        self.dt = 0.1
+
+        # total run time
+        self.t = 0
+
+    def render(self, mode='human'):
+        pos_array = [self.target_pos[0] - self.x_pos, self.target_pos[1] - self.y_pos, self.target_pos[2] - self.z_pos]
+        print(f'Distance to Target: {pos_array}')
+
+if __name__ == '__main__':
+    drone = QuadRotorEnv([10,20,30])
+    for i in range(10):
+        drone.step([1,2,3])
+        drone.render()
