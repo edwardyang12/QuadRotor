@@ -1,13 +1,13 @@
 import sys
 import pandas as pd
 from agent import DDGP
-from quad_env1 import QuadRotorEnv
+from quad_env2 import QuadRotorEnv
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
 num_episodes = 500
-task = QuadRotorEnv([10,20,30])
+task = QuadRotorEnv(target_pos =[10,20,30])
 agent = DDGP(task)
 best_score = -1000
 best_x = 0
@@ -28,15 +28,15 @@ for i_episode in range(1, num_episodes+1):
         state = next_state
         score += reward
         if score > best_score:
-            best_x = task._get_obs()[0][0]
-            best_y = task._get_obs()[0][1]
-            best_z = task._get_obs()[0][2]
+            best_x = task.pose[0]
+            best_y = task.pose[1]
+            best_z = task.pose[2]
         best_score = max(score, best_score)
         data[i_episode] = {'Episode': i_episode, 'Reward':score,'Action':action,'Best_Score':best_score,
-                            'Position_x':task._get_obs()[0],'Position_y':task._get_obs()[1],'Position_z':task._get_obs()[2]}
+                            'Position_x':task.pose[0],'Position_y':task.pose[1],'Position_z':task.pose[2]}
         if done:
             print("\rEpisode = {:4f}, score = {:7.3f} (best = {:7.3f}), last_position = ({:5.1f},{:5.1f},{:5.1f}), best_position = ({:5.1f},{:5.1f},{:5.1f})".format(
-                i_episode, score, best_score, task._get_obs()[0][0], task._get_obs()[0][1], task._get_obs()[0][2], best_x, best_y, best_z), end="")
+                i_episode, score, best_score, task.pose[0], task.pose[1], task.pose[2], best_x, best_y, best_z), end="")
             break
     reward_results['episode'].append(i_episode)
     reward_results['reward'].append(score)

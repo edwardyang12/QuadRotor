@@ -10,7 +10,8 @@ class DDGP():
     """Reinforcement Learning agent that learns using DDPG."""
     def __init__(self, task):
         self.task = task
-        self.state_size = np.prod(self.task.observation_space.shape)
+        #self.state_size = np.prod(self.task.observation_space.shape)
+        self.state_size = task.state_size
         self.action_size = np.prod(self.task.action_space.shape)
         self.action_low = self.task.action_space.high
         self.action_high = self.task.action_space.low
@@ -71,11 +72,11 @@ class DDGP():
 
         """Update policy and value parameters using given batch of experience tuples."""
         # Convert experience tuples to separate arrays for each element (states, actions, rewards, etc.)
-        states = np.vstack([e.state for e in experiences if e is not None]).reshape(64,12)
+        states = np.vstack([e.state for e in experiences if e is not None])
         actions = np.array([e.action for e in experiences if e is not None]).astype(np.float32).reshape(-1, self.action_size)
         rewards = np.array([e.reward for e in experiences if e is not None]).astype(np.float32).reshape(-1, 1)
         dones = np.array([e.done for e in experiences if e is not None]).astype(np.uint8).reshape(-1, 1)
-        next_states = np.vstack([e.next_state for e in experiences if e is not None]).reshape(64,12)
+        next_states = np.vstack([e.next_state for e in experiences if e is not None])
 
         # print(next_states)
         # Get predicted next-state actions and Q values from target models
