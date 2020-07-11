@@ -5,6 +5,7 @@ from quad_env2 import QuadRotorEnv
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
 num_episodes = 500
 task = QuadRotorEnv(target_pos =[10,20,30])
@@ -17,6 +18,9 @@ data = {}
 reward_log = "reward.txt"
 reward_labels = ['episode', 'reward']
 reward_results = {x : [] for x in reward_labels}
+episode =[]
+scoreList = []
+best_scoreList = []
 for i_episode in range(1, num_episodes+1):
     state = agent.reset_episode()
     score = 0
@@ -37,7 +41,19 @@ for i_episode in range(1, num_episodes+1):
         if done:
             print("\rEpisode = {:4f}, score = {:7.3f} (best = {:7.3f}), last_position = ({:5.1f},{:5.1f},{:5.1f}), best_position = ({:5.1f},{:5.1f},{:5.1f})".format(
                 i_episode, score, best_score, task.pose[0], task.pose[1], task.pose[2], best_x, best_y, best_z), end="")
+            episode.append(i_episode)
+            scoreList.append(score)
+            best_scoreList.append(best_score)
             break
     reward_results['episode'].append(i_episode)
     reward_results['reward'].append(score)
     sys.stdout.flush()
+
+graph = plt.figure()
+ax = graph.add_subplot(111)
+
+ax.scatter(episode, scoreList, label = 'score', c='b')
+ax.scatter(episode, best_scoreList, label = 'best_score', c='r')
+
+plt.legend(loc='lower right')
+plt.show()
