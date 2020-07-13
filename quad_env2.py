@@ -4,6 +4,7 @@ import gym
 from gym import spaces
 import numpy as np
 import matplotlib.pyplot as plt
+from TrajectoryGenerator import TrajectoryGenerator, calculate_position
 
 # simulation parameters
 gravity = -9.81 # gravity
@@ -46,16 +47,18 @@ def body_to_earth_frame(ii, jj, kk):
 
 class QuadRotorEnv(gym.Env):
 
-    def __init__(self, target_pos = None, init_pose=None, init_velocities=None, init_angle_velocities=None, runtime=5.):
+    def __init__(self, final_pos = None, init_pose=None, init_velocities=None, init_angle_velocities=None, runtime=5.):
 
         # position + angular position (x, y, z, roll, pitch, yaw)
         self.init_pose = init_pose
         self.init_velocities = init_velocities
         self.init_angle_velocities = init_angle_velocities
         self.runtime = runtime
-        self.target_pos = target_pos if target_pos is not None else np.array([10., 10., 10.])
+        self.final_pos = final_pos if final_pos is not None else np.array([10., 10., 10.])
+        self.traj_path = []
+        self.path_index = 0
 
-        self.action_repeat = 3
+        self.action_repeat = 1
 
         self.dt = 1 / 50.0
 
@@ -81,8 +84,15 @@ class QuadRotorEnv(gym.Env):
         #     dtype=np.float32
         # )
         # print(self.observation_space)
-
         self.reset()
+        self.get_trajectory()
+
+    def get_trajectory(self):
+        traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.runtime)
+        traj.solve()
+        T = int(self.runtime)
+        for i in range(T+1):
+            self.traj_path.append([calculate_position(traj.x_c,i)[0], calculate_position(traj.y_c,i)[0], calculate_position(traj.z_c,i)[0]])
 
     def reset(self):
         self.time = 0.0
@@ -93,6 +103,7 @@ class QuadRotorEnv(gym.Env):
         self.angular_accels = np.array([0.0, 0.0, 0.0])
         self.prop_wind_speed = np.array([0., 0., 0., 0.])
         self.done = False
+        self.path_index = 0
 
         return np.concatenate([self.pose] * self.action_repeat )
 
@@ -154,7 +165,7 @@ class QuadRotorEnv(gym.Env):
 
     def _get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = np.tanh(1 - 0.0005*(abs(self.pose[:3] - self.target_pos)).sum())
+        reward = np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -185,9 +196,36 @@ class QuadRotorEnv(gym.Env):
 
         self.pose = np.array(new_positions + list(angles))
         self.time += self.dt
+
+        self._nearest_traj()
+
         if self.time > self.runtime:
             self.done = True
+        else:
+            if self._reached():
+                self.path_index+=1
+            self.done = False
         return self.done
+
+    # computes nearest point further along than initial point
+    def _nearest_traj(self):
+        closest = self.path_index
+        sum = np.sqrt((self.pose[:3] - np.array(self.traj_path[closest]))**2).sum()
+        for index, coord in enumerate(self.traj_path):
+            compare = np.sqrt((self.pose[:3] - np.array(coord))**2).sum()
+            if(compare < sum and index > self.path_index):
+                closest = index
+                sum = compare
+        self.path_index = closest
+
+    # computes whether drone has reached target point in trajectory
+    def _reached(self):
+        sum = np.sqrt((self.pose[:3] - np.array(self.traj_path[self.path_index]))**2).sum()
+        if(sum<1): # "1" is euclidian distance away ARBITRARY NUMBER
+            return True
+        else:
+            return False
+
 
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
@@ -202,3 +240,7 @@ class QuadRotorEnv(gym.Env):
 
 if __name__ == '__main__':
     drone = QuadRotorEnv()
+    drone.pose = [9,9,9,0,0,0]
+    print(drone.step([1,400,1,1]))
+    drone.pose = [0,0,0,0,0,0]
+    print(drone.step([1,400,1,1]))

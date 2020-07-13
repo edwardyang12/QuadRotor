@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 num_episodes = 500
-task = QuadRotorEnv(target_pos =[10,20,30])
+task = QuadRotorEnv(final_pos =[100,200,300])
 agent = DDGP(task)
 best_score = -1000
 best_x = 0
