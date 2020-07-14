@@ -158,6 +158,7 @@ class QuadRotorEnv(gym.Env):
             D = propeller_size
             n = rotor_speeds[prop_number]
             J = V / n * D
+            #print(V, J, self.pose)
             # From http://m-selig.ae.illinois.edu/pubs/BrandtSelig-2011-AIAA-2011-1255-LRN-Propellers.pdf
             C_T = max(.12 - .07*max(0, J)-.1*max(0, J)**2, 0)
             thrusts.append(C_T * rho * n**2 * D**4)
@@ -204,7 +205,6 @@ class QuadRotorEnv(gym.Env):
         else:
             if self._reached():
                 self.path_index+=1
-            self.done = False
         return self.done
 
     # computes nearest point further along than initial point
