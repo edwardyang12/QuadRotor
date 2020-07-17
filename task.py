@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 num_episodes = 500
-task = QuadRotorEnv(final_pos =[100,200,300])
+task = QuadRotorEnv(final_pos =[50,100,50])
 agent = DDGP(task)
 best_score = -1000
 best_x = 0
@@ -21,6 +21,7 @@ reward_results = {x : [] for x in reward_labels}
 episode =[]
 scoreList = []
 best_scoreList = []
+
 for i_episode in range(1, num_episodes+1):
     state = agent.reset_episode()
     score = 0
@@ -37,7 +38,7 @@ for i_episode in range(1, num_episodes+1):
             best_z = task.pose[2]
         best_score = max(score, best_score)
         data[i_episode] = {'Episode': i_episode, 'Reward':score,'Action':action,'Best_Score':best_score,
-                            'Position_x':task.pose[0],'Position_y':task.pose[1],'Position_z':task.pose[2]}
+                            'Position_x':best_x,'Position_y':best_y,'Position_z':best_z}
         if done:
             print("\rEpisode = {:4f}, score = {:7.3f} (best = {:7.3f}), last_position = ({:5.1f},{:5.1f},{:5.1f}), best_position = ({:5.1f},{:5.1f},{:5.1f})".format(
                 i_episode, score, best_score, task.pose[0], task.pose[1], task.pose[2], best_x, best_y, best_z), end="")

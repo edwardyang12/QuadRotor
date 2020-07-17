@@ -9,7 +9,7 @@ from rendering import Renderer, Ground, QuadCopter
 
 # simulation parameters
 gravity = -9.81 # gravity
-T = 5.0
+T = 5
 rho = 1.2 # density of air
 mass = 0.958  # 300 g
 width, length, height = .51, .51, .235
@@ -48,7 +48,7 @@ class QuadRotorEnv(gym.Env):
         self.traj_path = []
         self.path_index = 0
 
-        self.action_repeat = 1
+        self.action_repeat = 3
 
         self.dt = 1 / 50.0
 
@@ -79,7 +79,7 @@ class QuadRotorEnv(gym.Env):
         self.reset()
         self.get_trajectory()
 
-    def render(self, mode='human', close=False):
+    def render(self, mode='human', close=True):
         if not close:
             self.renderer.setup()
 
@@ -92,7 +92,7 @@ class QuadRotorEnv(gym.Env):
         self.renderer.close()
 
     def get_trajectory(self):
-        traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.runtime)
+        traj = TrajectoryGenerator(self.init_pose[:3], self.final_pos, self.runtime)
         traj.solve()
         T = int(self.runtime)
         for i in range(T+1):
@@ -171,7 +171,7 @@ class QuadRotorEnv(gym.Env):
 
     def _get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
+        reward = self.path_index* np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -207,8 +207,8 @@ class QuadRotorEnv(gym.Env):
 
         if self.time > self.runtime:
             self.done = True
-        elif self.path_index == 5 and self._reached():
-            print("reached end of path")
+        elif self.path_index == int(self.runtime) and self._reached():
+            print("Reached end of path")
             self.done = True
         else:
             if self._reached():
@@ -242,8 +242,8 @@ class QuadRotorEnv(gym.Env):
         """Uses action to obtain next state, reward, done."""
         reward = 0
         pose_all = []
+        self.render()
         for _ in range(self.action_repeat):
-            self.render()
             done = self._next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self._get_reward()
             pose_all.append(self.pose)
