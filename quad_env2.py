@@ -213,6 +213,9 @@ class QuadRotorEnv(gym.Env):
         else:
             if self._reached():
                 self.path_index+=1
+        if self.done:
+            self.close()
+
         return self.done
 
     # computes nearest point further along than initial point
@@ -240,6 +243,7 @@ class QuadRotorEnv(gym.Env):
         reward = 0
         pose_all = []
         for _ in range(self.action_repeat):
+            self.render()
             done = self._next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self._get_reward()
             pose_all.append(self.pose)
@@ -250,7 +254,8 @@ if __name__ == '__main__':
     drone = QuadRotorEnv()
     drone.close()
     drone.render()
-    drone.pose = [9,9,9,0,0,0]
+    while (True):
+        drone.pose = [9,9,9,0,0,0]
     print(drone.step([1,400,1,1]))
     drone.pose = [0,0,0,0,0,0]
     print(drone.step([1,400,1,1]))

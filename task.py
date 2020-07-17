@@ -24,7 +24,7 @@ best_scoreList = []
 for i_episode in range(1, num_episodes+1):
     state = agent.reset_episode()
     score = 0
-
+    task.render()
     while True:
         action = agent.act(state)
         next_state, reward, done = task.step(action)
