@@ -84,22 +84,43 @@ def calculate_position(c, t):
     """
     return c[0] * t**5 + c[1] * t**4 + c[2] * t**3 + c[3] * t**2 + c[4] * t + c[5]
 
+def C(x):
+    return np.cos(x)
+
+def S(x):
+    return np.sin(x)
+
+def earth_to_body_frame(ii, jj, kk):
+    # C^b_n
+    R = [[C(kk) * C(jj), C(kk) * S(jj) * S(ii) - S(kk) * C(ii), C(kk) * S(jj) * C(ii) + S(kk) * S(ii)],
+         [S(kk) * C(jj), S(kk) * S(jj) * S(ii) + C(kk) * C(ii), S(kk) * S(jj) * C(ii) - C(kk) * S(ii)],
+         [-S(jj), C(jj) * S(ii), C(jj) * C(ii)]]
+    return np.array(R)
+
+
+def body_to_earth_frame(ii, jj, kk):
+    # C^n_b
+    return np.transpose(earth_to_body_frame(ii, jj, kk))
+
 if __name__ == '__main__':
     start = [0,0,0]
-    desired = [40,35,81]
+    desired = [100,200,300]
     x_coord = []
     y_coord = []
     z_coord = []
     T = 5
     traj = TrajectoryGenerator(start, desired, T)
     traj.solve()
+    traj_path = []
     for i in range(T+1):
         x_coord.append(calculate_position(traj.x_c,i))
         y_coord.append(calculate_position(traj.y_c,i))
         z_coord.append(calculate_position(traj.z_c,i))
-
+        traj_path.append([calculate_position(traj.x_c,i)[0], calculate_position(traj.y_c,i)[0], calculate_position(traj.z_c,i)[0]])
     fig = plt.figure()
     ax = plt.axes(projection="3d")
+
+    print(traj_path)
 
     ax.scatter3D(x_coord, y_coord, z_coord, c='r')
     ax.set_xlabel('x')

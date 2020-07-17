@@ -4,11 +4,12 @@ import gym
 from gym import spaces
 import numpy as np
 import matplotlib.pyplot as plt
-from TrajectoryGenerator import TrajectoryGenerator, calculate_position
+from TrajectoryGenerator import TrajectoryGenerator, calculate_position, earth_to_body_frame, body_to_earth_frame
+from rendering import Renderer, Ground, QuadCopter
 
 # simulation parameters
 gravity = -9.81 # gravity
-T = 5
+T = 5.0
 rho = 1.2 # density of air
 mass = 0.958  # 300 g
 width, length, height = .51, .51, .235
@@ -26,28 +27,17 @@ I_z = 1 / 12. * mass * (width**2 + length**2)
 
 env_bounds = 300.0  # 300 m / 300 m / 300 m
 
-def C(x):
-    return np.cos(x)
-
-def S(x):
-    return np.sin(x)
-
-
-def earth_to_body_frame(ii, jj, kk):
-    # C^b_n
-    R = [[C(kk) * C(jj), C(kk) * S(jj) * S(ii) - S(kk) * C(ii), C(kk) * S(jj) * C(ii) + S(kk) * S(ii)],
-         [S(kk) * C(jj), S(kk) * S(jj) * S(ii) + C(kk) * C(ii), S(kk) * S(jj) * C(ii) - C(kk) * S(ii)],
-         [-S(jj), C(jj) * S(ii), C(jj) * C(ii)]]
-    return np.array(R)
-
-
-def body_to_earth_frame(ii, jj, kk):
-    # C^n_b
-    return np.transpose(earth_to_body_frame(ii, jj, kk))
-
 class QuadRotorEnv(gym.Env):
+    metadata = {
+        'render.modes': ['human', 'rgb_array'],
+        'video.frames_per_second': 50
+    }
 
-    def __init__(self, final_pos = None, init_pose=None, init_velocities=None, init_angle_velocities=None, runtime=5.):
+    def __init__(self, final_pos = None, init_pose=None, init_velocities=None, init_angle_velocities=None, runtime=T):
+
+        self.renderer = Renderer()
+        self.renderer.add_object(Ground())
+        self.renderer.add_object(QuadCopter(self))
 
         # position + angular position (x, y, z, roll, pitch, yaw)
         self.init_pose = init_pose
@@ -67,6 +57,8 @@ class QuadRotorEnv(gym.Env):
 
         self.moments_of_inertia = np.array([I_x, I_y, I_z])  # moments of inertia
 
+        self.rotor_speeds = [0,0,0,0]
+        self.max_rotor_speed = 1000
         self.action_space = spaces.Box(
             # rotor speeds of each propeller
             low = np.array([0,0,0, 0]),
@@ -83,9 +75,21 @@ class QuadRotorEnv(gym.Env):
         #     high = np.array([env_bounds / 2, env_bounds / 2, env_bounds]),
         #     dtype=np.float32
         # )
-        # print(self.observation_space)
+
         self.reset()
         self.get_trajectory()
+
+    def render(self, mode='human', close=False):
+        if not close:
+            self.renderer.setup()
+
+            # update the renderer's center position
+            self.renderer.set_center(self.pose[0])
+
+        return self.renderer.render(mode, close)
+
+    def close(self):
+        self.renderer.close()
 
     def get_trajectory(self):
         traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.runtime)
@@ -104,6 +108,8 @@ class QuadRotorEnv(gym.Env):
         self.prop_wind_speed = np.array([0., 0., 0., 0.])
         self.done = False
         self.path_index = 0
+        self.rotor_speeds = [0,0,0,0]
+        self.renderer.set_center(None)
 
         return np.concatenate([self.pose] * self.action_repeat )
 
@@ -116,11 +122,9 @@ class QuadRotorEnv(gym.Env):
         return linear_drag
 
     def _get_linear_forces(self, thrusts):
-        # Gravity
+
         gravity_force = mass * gravity * np.array([0, 0, 1])
-        # Thrust
         thrust_body_force = np.array([0, 0, sum(thrusts)])
-        # Drag
         drag_body_force = -self._get_linear_drag()
         body_forces = thrust_body_force + drag_body_force
 
@@ -152,6 +156,7 @@ class QuadRotorEnv(gym.Env):
     def _get_propeller_thrust(self, rotor_speeds):
         '''calculates net thrust (thrust - drag) based on velocity
         of propeller and incoming power'''
+        self.rotor_speeds = rotor_speeds
         thrusts = []
         for prop_number in range(4):
             V = self.prop_wind_speed[prop_number]
@@ -202,6 +207,9 @@ class QuadRotorEnv(gym.Env):
 
         if self.time > self.runtime:
             self.done = True
+        elif self.path_index == 5 and self._reached():
+            print("reached end of path")
+            self.done = True
         else:
             if self._reached():
                 self.path_index+=1
@@ -240,7 +248,11 @@ class QuadRotorEnv(gym.Env):
 
 if __name__ == '__main__':
     drone = QuadRotorEnv()
+    drone.close()
+    drone.render()
     drone.pose = [9,9,9,0,0,0]
     print(drone.step([1,400,1,1]))
     drone.pose = [0,0,0,0,0,0]
     print(drone.step([1,400,1,1]))
+    drone.render()
+    drone.close()
