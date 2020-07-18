@@ -5,50 +5,16 @@ import gym
 from utils import RPYToRot, RotToQuat, RotToRPY
 from quaternion import Quaternion
 import scipy.integrate as integrate
-
-mass = 0.18 # kg
-g = 9.81 # m/s/s
-I = np.array([(0.00025, 0, 2.55e-6),
-              (0, 0.000232, 0),
-              (2.55e-6, 0, 0.0003738)]);
-
-invI = np.linalg.inv(I)
-arm_length = 0.086 # meter
-height = 0.05
-minF = 0.0
-maxF = 2.0 * mass * g
-L = arm_length
-H = height
-km = 1.5e-9
-kf = 6.11e-8
-r = km / kf
-
-#  [ F  ]         [ F1 ]
-#  | M1 |  = A *  | F2 |
-#  | M2 |         | F3 |
-#  [ M3 ]         [ F4 ]
-A = np.array([[ 1,  1,  1,  1],
-              [ 0,  L,  0, -L],
-              [-L,  0,  L,  0],
-              [ r, -r,  r, -r]])
-
-invA = np.linalg.inv(A)
-
-body_frame = np.array([(L, 0, 0, 1),
-                       (0, L, 0, 1),
-                       (-L, 0, 0, 1),
-                       (0, -L, 0, 1),
-                       (0, 0, 0, 1),
-                       (0, 0, H, 1)])
+import params
 
 class QuadRotorEnv(gym.Env):
     def __init__(self, pos, attitude):
-        """ pos = [x,y,z] attitude = [roll,pitch,yaw]
+        """ pos = [x,y,z] attitude = [rool,pitch,yaw]
             """
         self.state = np.zeros(13)
         roll, pitch, yaw = attitude
-        rot = RPYToRot(roll, pitch, yaw)
-        quat= RotToQuat(rot)
+        rot    = RPYToRot(roll, pitch, yaw)
+        quat   = RotToQuat(rot)
         self.state[0] = pos[0]
         self.state[1] = pos[1]
         self.state[2] = pos[2]
@@ -56,6 +22,12 @@ class QuadRotorEnv(gym.Env):
         self.state[7] = quat[1]
         self.state[8] = quat[2]
         self.state[9] = quat[3]
+        self.dt = 0.005
+        self.T = 5
+
+    def reset(self):
+        self.state = np.zeros(13)
+
     def world_frame(self):
         """ position returns a 3x6 matrix
             where row is [x, y, z] column is m1 m2 m3 m4 origin h
@@ -64,7 +36,7 @@ class QuadRotorEnv(gym.Env):
         quat = Quaternion(self.state[6:10])
         rot = quat.as_rotation_matrix()
         wHb = np.r_[np.c_[rot,origin], np.array([[0, 0, 0, 1]])]
-        quadBodyFrame = body_frame.T
+        quadBodyFrame = params.body_frame.T
         quadWorldFrame = wHb.dot(quadBodyFrame)
         world_frame = quadWorldFrame[0:3]
         return world_frame
@@ -89,8 +61,8 @@ class QuadRotorEnv(gym.Env):
         bRw = Quaternion(quat).as_rotation_matrix() # world to body rotation matrix
         wRb = bRw.T # orthogonal matrix inverse = transpose
         # acceleration - Newton's second law of motion
-        accel = 1.0 / mass * (wRb.dot(np.array([[0, 0, F]]).T)
-                    - np.array([[0, 0, mass * g]]).T)
+        accel = 1.0 / params.mass * (wRb.dot(np.array([[0, 0, F]]).T)
+                    - np.array([[0, 0, params.mass * params.g]]).T)
         # angular velocity - using quternion
         # http://www.euclideanspace.com/physics/kinematics/angularvelocity/
         K_quat = 2.0; # this enforces the magnitude 1 constraint for the quaternion
@@ -103,7 +75,7 @@ class QuadRotorEnv(gym.Env):
         # angular acceleration - Euler's equation of motion
         # https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)
         omega = np.array([p,q,r])
-        pqrdot = invI.dot( M.flatten() - np.cross(omega, I.dot(omega)) )
+        pqrdot = params.invI.dot( M.flatten() - np.cross(omega, params.I.dot(omega)) )
         state_dot = np.zeros(13)
         state_dot[0]  = xdot
         state_dot[1]  = ydot
@@ -121,18 +93,32 @@ class QuadRotorEnv(gym.Env):
 
         return state_dot
 
-    def update(self, dt, F, M):
+    def _get_reward(self):
+        return 10
+
+    def step(self, F, M):
         # limit thrust and Moment
-        L = arm_length
-        r = r
-        prop_thrusts = invA.dot(np.r_[np.array([[F]]), M])
-        prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, maxF/4), minF/4)
+        L = params.arm_length
+        r = params.r
+        prop_thrusts = params.invA.dot(np.r_[np.array([[F]]), M])
+        prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, params.maxF/4), params.minF/4)
         F = np.sum(prop_thrusts_clamped)
-        M = A[1:].dot(prop_thrusts_clamped)
-        self.state = integrate.odeint(self.state_dot, self.state, [0,dt], args = (F, M))[1]
+        M = params.A[1:].dot(prop_thrusts_clamped)
+        self.state = integrate.odeint(self.state_dot, self.state, [0,self.dt], args = (F, M))[1]
+
+        done = True
+
+        return self.state, self._get_reward(), done
 
 if __name__ == '__main__':
     pose = [9,9,9]
     attitude = [0,0,0]
+    F = 5
+    M = np.array([[2 * (1) + 3 * (2),
+                   4 * (2) + 1 * (2),
+                   3 * (2) + 4 * (8)]]).T
+
     drone = QuadRotorEnv(pose,attitude)
+    print(drone.state)
+    drone.step(F,M)
     print(drone.state)
