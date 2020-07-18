@@ -1,7 +1,6 @@
 import gym
 from gym import spaces
 import numpy as np
-from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 
 # Simulation parameters
@@ -130,21 +129,6 @@ class QuadRotorEnv(gym.Env):
             done = True
         if(self.pos[2] > 100 or self.pos[2] < 0 ):
             done = True
-
-        if(self.vel[0] > 20 or self.vel[0] < -20):
-            done = True
-        if(self.vel[1] > 20 or self.vel[1] < -20):
-            done = True
-        if(self.vel[2] > 20 or self.vel[2] < -20):
-            done = True
-
-
-        # if(self.angle_vel[0] > 10 or self.angle_vel[0] < -10):
-        #     done = True
-        # if(self.angle_vel[1] > 10 or self.angle_vel[1] < -10):
-        #     done = True
-        # if(self.angle_vel[2] > 10 or self.angle_vel[2] < -10):
-        #     done = True
 
         return self._get_obs(), self._get_reward(), done
 

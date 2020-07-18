@@ -9,7 +9,7 @@ from rendering import Renderer, Ground, QuadCopter
 
 # simulation parameters
 gravity = -9.81 # gravity
-T = 5
+T = 10
 rho = 1.2 # density of air
 mass = 0.958  # 300 g
 width, length, height = .51, .51, .235
@@ -92,7 +92,7 @@ class QuadRotorEnv(gym.Env):
         self.renderer.close()
 
     def get_trajectory(self):
-        traj = TrajectoryGenerator(self.init_pose[:3], self.final_pos, self.runtime)
+        traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.runtime)
         traj.solve()
         T = int(self.runtime)
         for i in range(T+1):
