@@ -6,11 +6,44 @@ from utils import RPYToRot, RotToQuat, RotToRPY
 from quaternion import Quaternion
 import scipy.integrate as integrate
 import params
+import Trajectory
+import quadPlot
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 class QuadRotorEnv(gym.Env):
-    def __init__(self, pos, attitude):
+    metadata = {'render.modes': ['human']}
+    def __init__(self):
+        self.T = 5
+        self.animation_frequency = 50
+        self.control_frequency = 200 # Hz for attitude control loop
+        self.control_iterations = self.control_frequency / self.animation_frequency
+        self.dt = 1.0 / self.control_frequency #0.1
+        self.time = 0.0
+        self.xList = []
+        self.yList = []
+        self.zList = []
+        self.reset()
+        self.setupGraph()
+
+    def setupGraph(self):
+        self.fig = plt.figure()
+        ax = self.fig.add_axes([0, 0, 1, 1], projection='3d')
+        ax.plot([], [], [], '-', c='cyan')[0]
+        ax.plot([], [], [], '-', c='red')[0]
+        ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
+        ax.plot([], [], [], '.', c='red', markersize=4)[0]
+        ax.plot([], [], [], '.', c='blue', markersize=2)[0]
+        quadPlot.set_limit((-0.5,0.5), (-0.5,0.5), (-0.5,8))
+        quadPlot.plot_waypoints(self.waypoints)
+        ax = plt.gca()
+        self.lines = ax.get_lines()
+
+    def reset(self):
         """ pos = [x,y,z] attitude = [rool,pitch,yaw]
             """
+        pos = (0.5,0,0)
+        attitude = (0,0,0)
         self.state = np.zeros(13)
         roll, pitch, yaw = attitude
         rot    = RPYToRot(roll, pitch, yaw)
@@ -22,11 +55,8 @@ class QuadRotorEnv(gym.Env):
         self.state[7] = quat[1]
         self.state[8] = quat[2]
         self.state[9] = quat[3]
-        self.dt = 0.005
-        self.T = 5
-
-    def reset(self):
-        self.state = np.zeros(13)
+        self.waypoints = Trajectory.get_helix_waypoints(0, 9)
+        self.coeff_x, self.coeff_y, self.coeff_z = Trajectory.get_MST_coefficients(self.waypoints)
 
     def world_frame(self):
         """ position returns a 3x6 matrix
@@ -106,19 +136,31 @@ class QuadRotorEnv(gym.Env):
         M = params.A[1:].dot(prop_thrusts_clamped)
         self.state = integrate.odeint(self.state_dot, self.state, [0,self.dt], args = (F, M))[1]
 
+        self.time += self.dt
         done = True
 
         return self.state, self._get_reward(), done
 
+    def trajectory(self, velocity):
+        return Trajectory.generate_trajectory(self.time, velocity, self.waypoints, self.coeff_x, self.coeff_y, self.coeff_z)
+
+    def render(self, mode='human', close=False):
+        x,y,z = self.world_frame()[:,4]
+        self.xList.append(x)
+        self.yList.append(y)
+        self.zList.append(z)
+        self.lines[-1].set_data(self.xList, self.yList)
+        self.lines[-1].set_3d_properties(self.zList)
+        self.fig.canvas.draw()
+        plt.pause(0.01)
+
 if __name__ == '__main__':
-    pose = [9,9,9]
-    attitude = [0,0,0]
     F = 5
     M = np.array([[2 * (1) + 3 * (2),
                    4 * (2) + 1 * (2),
                    3 * (2) + 4 * (8)]]).T
 
-    drone = QuadRotorEnv(pose,attitude)
+    drone = QuadRotorEnv()
     print(drone.state)
     drone.step(F,M)
     print(drone.state)
