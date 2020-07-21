@@ -19,12 +19,8 @@ class QuadRotorEnv(gym.Env):
         self.control_frequency = 200 # Hz for attitude control loop
         self.control_iterations = self.control_frequency / self.animation_frequency
         self.dt = 1.0 / self.control_frequency #0.1
-        self.time = 0.0
-        self.xList = []
-        self.yList = []
-        self.zList = []
+
         self.reset()
-        self.setupGraph()
 
     def setupGraph(self):
         self.fig = plt.figure()
@@ -40,6 +36,7 @@ class QuadRotorEnv(gym.Env):
         self.lines = ax.get_lines()
 
     def reset(self):
+        plt.close()
         """ pos = [x,y,z] attitude = [rool,pitch,yaw]
             """
         pos = (0.5,0,0)
@@ -55,8 +52,13 @@ class QuadRotorEnv(gym.Env):
         self.state[7] = quat[1]
         self.state[8] = quat[2]
         self.state[9] = quat[3]
+        self.xList = []
+        self.yList = []
+        self.zList = []
+        self.time = 0
         self.waypoints = Trajectory.get_helix_waypoints(0, 9)
         self.coeff_x, self.coeff_y, self.coeff_z = Trajectory.get_MST_coefficients(self.waypoints)
+        self.setupGraph()
 
     def world_frame(self):
         """ position returns a 3x6 matrix
@@ -145,14 +147,15 @@ class QuadRotorEnv(gym.Env):
         return Trajectory.generate_trajectory(self.time, velocity, self.waypoints, self.coeff_x, self.coeff_y, self.coeff_z)
 
     def render(self, mode='human', close=False):
-        x,y,z = self.world_frame()[:,4]
-        self.xList.append(x)
-        self.yList.append(y)
-        self.zList.append(z)
-        self.lines[-1].set_data(self.xList, self.yList)
-        self.lines[-1].set_3d_properties(self.zList)
-        self.fig.canvas.draw()
-        plt.pause(0.01)
+        if not close:
+            x,y,z = self.world_frame()[:,4]
+            self.xList.append(x)
+            self.yList.append(y)
+            self.zList.append(z)
+            self.lines[-1].set_data(self.xList, self.yList)
+            self.lines[-1].set_3d_properties(self.zList)
+            self.fig.canvas.draw()
+            plt.pause(0.01)
 
 if __name__ == '__main__':
     F = 5

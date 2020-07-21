@@ -1,14 +1,14 @@
 import sys
 import pandas as pd
 from agent import DDGP
-from quad_env2 import QuadRotorEnv
+from quad_env4 import QuadRotorEnv
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 
 num_episodes = 500
-task = QuadRotorEnv(final_pos =[50,75,100])
+task = QuadRotorEnv()
 agent = DDGP(task)
 best_score = -1000
 best_x = 0
@@ -25,11 +25,11 @@ best_scoreList = []
 for i_episode in range(1, num_episodes+1):
     state = agent.reset_episode()
     score = 0
-    task.render()
     while True:
         action = agent.act(state)
         next_state, reward, done = task.step(action)
         agent.step(action, reward, next_state, done)
+        task.render()
         state = next_state
         score += reward
         if score > best_score:
