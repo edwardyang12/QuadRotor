@@ -2,12 +2,12 @@
 
 import numpy as np
 import gym
-from utils import RPYToRot, RotToQuat, RotToRPY
-from quaternion import Quaternion
+from quad_env.envs.utils import RPYToRot, RotToQuat, RotToRPY
+from quad_env.envs.quaternion import Quaternion
 import scipy.integrate as integrate
-import params
-import Trajectory
-import quadPlot
+from quad_env.envs.params import *
+from quad_env.envs.Trajectory import get_helix_waypoints, get_MST_coefficients, generate_trajectory
+from quad_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
@@ -30,8 +30,8 @@ class QuadRotorEnv(gym.Env):
         ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
         ax.plot([], [], [], '.', c='red', markersize=4)[0]
         ax.plot([], [], [], '.', c='blue', markersize=2)[0]
-        quadPlot.set_limit((-0.5,0.5), (-0.5,0.5), (-0.5,8))
-        quadPlot.plot_waypoints(self.waypoints)
+        set_limit((-0.5,0.5), (-0.5,0.5), (-0.5,8))
+        plot_waypoints(self.waypoints)
         ax = plt.gca()
         self.lines = ax.get_lines()
 
@@ -56,8 +56,8 @@ class QuadRotorEnv(gym.Env):
         self.yList = []
         self.zList = []
         self.time = 0
-        self.waypoints = Trajectory.get_helix_waypoints(0, 9)
-        self.coeff_x, self.coeff_y, self.coeff_z = Trajectory.get_MST_coefficients(self.waypoints)
+        self.waypoints = get_helix_waypoints(0, 9)
+        self.coeff_x, self.coeff_y, self.coeff_z = get_MST_coefficients(self.waypoints)
         self.setupGraph()
 
     def world_frame(self):
@@ -68,7 +68,7 @@ class QuadRotorEnv(gym.Env):
         quat = Quaternion(self.state[6:10])
         rot = quat.as_rotation_matrix()
         wHb = np.r_[np.c_[rot,origin], np.array([[0, 0, 0, 1]])]
-        quadBodyFrame = params.body_frame.T
+        quadBodyFrame = body_frame.T
         quadWorldFrame = wHb.dot(quadBodyFrame)
         world_frame = quadWorldFrame[0:3]
         return world_frame
@@ -93,8 +93,8 @@ class QuadRotorEnv(gym.Env):
         bRw = Quaternion(quat).as_rotation_matrix() # world to body rotation matrix
         wRb = bRw.T # orthogonal matrix inverse = transpose
         # acceleration - Newton's second law of motion
-        accel = 1.0 / params.mass * (wRb.dot(np.array([[0, 0, F]]).T)
-                    - np.array([[0, 0, params.mass * params.g]]).T)
+        accel = 1.0 / mass * (wRb.dot(np.array([[0, 0, F]]).T)
+                    - np.array([[0, 0, mass * g]]).T)
         # angular velocity - using quternion
         # http://www.euclideanspace.com/physics/kinematics/angularvelocity/
         K_quat = 2.0; # this enforces the magnitude 1 constraint for the quaternion
@@ -107,7 +107,7 @@ class QuadRotorEnv(gym.Env):
         # angular acceleration - Euler's equation of motion
         # https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)
         omega = np.array([p,q,r])
-        pqrdot = params.invI.dot( M.flatten() - np.cross(omega, params.I.dot(omega)) )
+        pqrdot = invI.dot( M.flatten() - np.cross(omega, I.dot(omega)) )
         state_dot = np.zeros(13)
         state_dot[0]  = xdot
         state_dot[1]  = ydot
@@ -130,12 +130,11 @@ class QuadRotorEnv(gym.Env):
 
     def step(self, F, M):
         # limit thrust and Moment
-        L = params.arm_length
-        r = params.r
-        prop_thrusts = params.invA.dot(np.r_[np.array([[F]]), M])
-        prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, params.maxF/4), params.minF/4)
+        L = arm_length
+        prop_thrusts = invA.dot(np.r_[np.array([[F]]), M])
+        prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, maxF/4), minF/4)
         F = np.sum(prop_thrusts_clamped)
-        M = params.A[1:].dot(prop_thrusts_clamped)
+        M = A[1:].dot(prop_thrusts_clamped)
         self.state = integrate.odeint(self.state_dot, self.state, [0,self.dt], args = (F, M))[1]
 
         self.time += self.dt
@@ -144,7 +143,7 @@ class QuadRotorEnv(gym.Env):
         return self.state, self._get_reward(), done
 
     def trajectory(self, velocity):
-        return Trajectory.generate_trajectory(self.time, velocity, self.waypoints, self.coeff_x, self.coeff_y, self.coeff_z)
+        return generate_trajectory(self.time, velocity, self.waypoints, self.coeff_x, self.coeff_y, self.coeff_z)
 
     def render(self, mode='human', close=False):
         if not close:

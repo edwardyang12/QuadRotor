@@ -1,6 +1,6 @@
 import numpy as np
 from math import sin, cos
-import params
+from quad_env.envs.params import *
 
 # PD Controller for quacopter
 # Return [F, M] F is total force thrust, M is 3x1 moment matrix
@@ -35,13 +35,13 @@ def run(quad, des_state):
     commanded_r_ddot_z = des_z_ddot + k_d_z * (des_z_dot - z_dot) + k_p_z * (des_z - z)
 
     # Thrust
-    F = params.mass * (params.g + commanded_r_ddot_z)
+    F = mass * (g + commanded_r_ddot_z)
     # Moment
     p_des = 0
     q_des = 0
     r_des = des_psi_dot
-    des_phi = 1 / params.g * (commanded_r_ddot_x * sin(des_psi) - commanded_r_ddot_y * cos(des_psi))
-    des_theta = 1 / params.g * (commanded_r_ddot_x * cos(des_psi) + commanded_r_ddot_y * sin(des_psi))
+    des_phi = 1 / g * (commanded_r_ddot_x * sin(des_psi) - commanded_r_ddot_y * cos(des_psi))
+    des_theta = 1 / g * (commanded_r_ddot_x * cos(des_psi) + commanded_r_ddot_y * sin(des_psi))
 
     M = np.array([[k_p_phi * (des_phi - phi) + k_d_phi * (p_des - p),
                    k_p_theta * (des_theta - theta) + k_d_theta * (q_des - q),
