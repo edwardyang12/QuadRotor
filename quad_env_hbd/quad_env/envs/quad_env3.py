@@ -39,8 +39,8 @@ class QuadRotorEnv(gym.Env):
         plt.close()
         """ pos = [x,y,z] attitude = [rool,pitch,yaw]
             """
-        pos = (0.5,0,0)
-        attitude = (0,0,0)
+        pos = (0.5,0.0,0.0)
+        attitude = (0.0,0.0,0.0)
         self.state = np.zeros(13)
         roll, pitch, yaw = attitude
         rot    = RPYToRot(roll, pitch, yaw)
@@ -147,14 +147,20 @@ class QuadRotorEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         if not close:
-            x,y,z = self.world_frame()[:,4]
+            frame = self.world_frame()
+            lines_data = [frame[:,[0,2]], frame[:,[1,3]], frame[:,[4,5]]]
+            for line, line_data in zip(self.lines[:3], lines_data):
+                x, y, z = line_data
+                line.set_data(x, y)
+                line.set_3d_properties(z)
+            x,y,z = frame[:,4]
             self.xList.append(x)
             self.yList.append(y)
             self.zList.append(z)
-            self.lines[-1].set_data(self.xList, self.yList)
-            self.lines[-1].set_3d_properties(self.zList)
+            self.lines[-1].set_data(np.array(self.xList), np.array(self.yList))
+            self.lines[-1].set_3d_properties(np.array(self.zList))
             self.fig.canvas.draw()
-            plt.pause(0.01)
+            plt.pause(0.0001)
 
 if __name__ == '__main__':
     F = 5
