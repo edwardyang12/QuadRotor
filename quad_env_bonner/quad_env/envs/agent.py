@@ -1,7 +1,7 @@
-from actor import Actor
-from critic import Critic
-from replay_buffer import ReplayBuffer
-from ou_noise import OUNoise
+from quad_env.envs.actor import Actor
+from quad_env.envs.critic import Critic
+from quad_env.envs.replay_buffer import ReplayBuffer
+from quad_env.envs.ou_noise import OUNoise
 import numpy as np
 import random
 from collections import namedtuple, deque

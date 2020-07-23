@@ -4,14 +4,13 @@ import gym
 from gym import spaces
 import numpy as np
 import matplotlib.pyplot as plt
-from TrajectoryGenerator import TrajectoryGenerator, calculate_position, earth_to_body_frame, body_to_earth_frame
-import quadPlot
+from quad_env.envs.TrajectoryGenerator import TrajectoryGenerator, calculate_position, earth_to_body_frame, body_to_earth_frame
+from quad_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 # simulation parameters
 gravity = -9.81 # gravity
-T = 10
 rho = 1.2 # density of air
 mass = 0.958  # 300 g
 width, length, height = .51, .51, .235
@@ -37,10 +36,10 @@ class QuadRotorEnv(gym.Env):
 
     def __init__(self):
 
-        self.runtime = 5
+        self.runtime = 7
+        self.divides = 1
 
         self.traj_path = []
-        self.path_index = 0
 
         self.action_repeat = 1
 
@@ -52,7 +51,7 @@ class QuadRotorEnv(gym.Env):
         self.moments_of_inertia = np.array([I_x, I_y, I_z])  # moments of inertia
 
         self.rotor_speeds = [0,0,0,0]
-        self.max_rotor_speed = 1000
+        self.max_rotor_speed = 2000
         self.action_space = spaces.Box(
             # rotor speeds of each propeller
             low = np.array([0,0,0, 0]),
@@ -80,8 +79,8 @@ class QuadRotorEnv(gym.Env):
         ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
         ax.plot([], [], [], '.', c='red', markersize=4)[0]
         ax.plot([], [], [], '.', c='blue', markersize=2)[0]
-        quadPlot.set_limit((-150,150), (-150,150), (0,300))
-        quadPlot.plot_waypoints(np.array(self.traj_path))
+        set_limit((-100,100), (-100,100), (0,200))
+        plot_waypoints(np.array(self.traj_path))
         ax = plt.gca()
         self.lines = ax.get_lines()
 
@@ -97,9 +96,9 @@ class QuadRotorEnv(gym.Env):
             plt.pause(0.01)
 
     def get_trajectory(self):
-        traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.runtime)
+        traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.divides)
         traj.solve()
-        T = int(self.runtime)
+        T = int(self.divides)
         for i in range(T+1):
             self.traj_path.append([calculate_position(traj.x_c,i)[0], calculate_position(traj.y_c,i)[0], calculate_position(traj.z_c,i)[0]])
 
@@ -116,7 +115,7 @@ class QuadRotorEnv(gym.Env):
         self.angular_accels = np.array([0.0, 0.0, 0.0])
         self.prop_wind_speed = np.array([0., 0., 0., 0.])
         self.done = False
-        self.path_index = 0
+        self.path_index = 1
         self.rotor_speeds = [0,0,0,0]
 
         self.xList = []
@@ -185,7 +184,8 @@ class QuadRotorEnv(gym.Env):
 
     def _get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = self.path_index* np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
+        reward = (1 + self.path_index)* np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
+
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -221,7 +221,7 @@ class QuadRotorEnv(gym.Env):
 
         if self.time > self.runtime:
             self.done = True
-        elif self.path_index == int(self.runtime) and self._reached():
+        elif self.path_index == int(self.divides) and self._reached():
             print("Reached end of path")
             self.done = True
         else:

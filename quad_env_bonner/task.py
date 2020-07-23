@@ -1,15 +1,16 @@
 import sys
 import pandas as pd
-from agent import DDGP
-from quad_env4 import QuadRotorEnv
+from quad_env.envs.agent import DDGP
+import quad_env
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.pyplot as plt
+import gym
+
+env = gym.make('quadcopter-v4')
 
 num_episodes = 500
-task = QuadRotorEnv()
-agent = DDGP(task)
+agent = DDGP(env)
 best_score = -1000
 best_x = 0
 best_y = 0
@@ -27,21 +28,23 @@ for i_episode in range(1, num_episodes+1):
     score = 0
     while True:
         action = agent.act(state)
-        next_state, reward, done = task.step(action)
+        next_state, reward, done = env.step(action)
         agent.step(action, reward, next_state, done)
-        task.render()
+        env.render()
         state = next_state
-        score += reward
+        score = reward / (50 * env.runtime)
+        # score += reward
+        # score = score / (env.time * 50)
         if score > best_score:
-            best_x = task.pose[0]
-            best_y = task.pose[1]
-            best_z = task.pose[2]
+            best_x = env.pose[0]
+            best_y = env.pose[1]
+            best_z = env.pose[2]
         best_score = max(score, best_score)
         data[i_episode] = {'Episode': i_episode, 'Reward':score,'Action':action,'Best_Score':best_score,
-                            'Position_x':best_x,'Position_y':best_y,'Position_z':best_z}
+                            'Position_x':env.pose[0],'Position_y':env.pose[1],'Position_z':env.pose[2]}
         if done:
             print("\rEpisode = {:4f}, score = {:7.3f} (best = {:7.3f}), last_position = ({:5.1f},{:5.1f},{:5.1f}), best_position = ({:5.1f},{:5.1f},{:5.1f})".format(
-                i_episode, score, best_score, task.pose[0], task.pose[1], task.pose[2], best_x, best_y, best_z), end="")
+                i_episode, score, best_score, env.pose[0], env.pose[1], env.pose[2], best_x, best_y, best_z), end="")
             episode.append(i_episode)
             scoreList.append(score)
             best_scoreList.append(best_score)
