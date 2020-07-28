@@ -54,7 +54,7 @@ class QuadRotorEnv(gym.Env):
         self.max_rotor_speed = 2000
         self.action_space = spaces.Box(
             # rotor speeds of each propeller
-            low = np.array([0,0,0, 0]),
+            low = np.array([-900,-900,-900, -900]),
             high = np.array([900,900,900, 900]),
             dtype=np.float32
         )

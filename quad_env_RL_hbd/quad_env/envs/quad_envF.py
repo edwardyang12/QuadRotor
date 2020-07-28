@@ -1,8 +1,10 @@
 # from https://github.com/hbd730/quadcopter-simulation/blob/master/model/quadcopter.py
 
 import numpy as np
+from math import sin, cos
 from numpy import linalg as LA
 import gym
+from gym import spaces
 from quad_env.envs.utils import RPYToRot, RotToQuat, RotToRPY
 from quad_env.envs.quaternion import Quaternion
 import scipy.integrate as integrate
@@ -12,15 +14,44 @@ from quad_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+k_d_x = 30
+k_p_x = 3
+k_d_y = 30
+k_p_y = 3
+k_p_z = 1000
+k_d_z = 200
+k_p_phi = 160
+k_d_phi = 3
+k_p_theta = 160
+k_d_theta = 3
+k_p_psi = 80
+k_d_psi = 5
+
 class QuadRotorEnv(gym.Env):
     metadata = {'render.modes': ['human']}
     def __init__(self):
-
+        self.v = 1.2
         self.T = 2
         self.animation_frequency = 50
         self.control_frequency = 200 # Hz for attitude control loop
         self.control_iterations = self.control_frequency / self.animation_frequency
         self.dt = 1.0 / self.control_frequency #0.1
+
+        self.action_space = spaces.Box(
+            low = np.array([-1000]),
+            high = np.array([1000]),
+            dtype=np.float32
+        )
+        # pos (x,y,z), vel, attitude, omega
+        high = np.array([0.5,0.5,8,2,2,5,1.5,1.5,1.5,1.5,100,100,100],
+                        dtype=np.float32)
+        low = np.array([-0.5,-0.5,-0.5,-2,-2,-5,-1.5,-1.5,-1.5,-1.5,-100,-100,-100],
+                        dtype=np.float32)
+        self.observation_space = spaces.Box(
+            low = low,
+            high = high,
+            dtype=np.float32
+        )
 
         self.reset()
 
@@ -64,6 +95,7 @@ class QuadRotorEnv(gym.Env):
         self.yaw = 0.0
         self.current_heading = np.zeros(2)
         self.setupGraph()
+        self.trajectory(self.v)
         return self.state
 
     def world_frame(self):
@@ -132,24 +164,58 @@ class QuadRotorEnv(gym.Env):
         return state_dot
 
     def _get_reward(self):
-        return 10
+        reward = np.tanh(1 - 0.0005*(abs(self.state[:3] - np.array(self.des_state.pos))).sum())
+        return reward
 
-    def step(self, values):
-        F,M = values
+    def step(self, F):
+        F= [F]
+        self.trajectory(self.v)
+        x, y, z = self.position()
+        x_dot, y_dot, z_dot = self.velocity()
+        phi, theta, psi = self.attitude()
+        p, q, r = self.omega()
+
+        des_x, des_y, des_z = self.des_state.pos
+        des_x_dot, des_y_dot, des_z_dot = self.des_state.vel
+        des_x_ddot, des_y_ddot, des_z_ddot = self.des_state.acc
+        des_psi = self.des_state.yaw
+        des_psi_dot = self.des_state.yawdot
+
+        #print("pos {}".format(des_state.pos))
+        #print("vel {}".format(des_state.vel))
+        #print("acc {}".format(des_state.acc))
+        #print("yaw {}".format(des_state.yaw))
+        #print("yawdot {}".format(des_state.yawdot))
+        # Commanded accelerations
+        commanded_r_ddot_x = des_x_ddot + k_d_x * (des_x_dot - x_dot) + k_p_x * (des_x - x)
+        commanded_r_ddot_y = des_y_ddot + k_d_y * (des_y_dot - y_dot) + k_p_y * (des_y - y)
+
+        # Moment
+        p_des = 0
+        q_des = 0
+        r_des = des_psi_dot
+        des_phi = 1 / g * (commanded_r_ddot_x * sin(des_psi) - commanded_r_ddot_y * cos(des_psi))
+        des_theta = 1 / g * (commanded_r_ddot_x * cos(des_psi) + commanded_r_ddot_y * sin(des_psi))
+
+        self.M = np.array([[k_p_phi * (des_phi - phi) + k_d_phi * (p_des - p),
+                       k_p_theta * (des_theta - theta) + k_d_theta * (q_des - q),
+                       k_p_psi * (des_psi - psi) + k_d_psi * (r_des - r)]]).T
+
+
         # limit thrust and Moment
         L = arm_length
-        prop_thrusts = invA.dot(np.r_[np.array([[F]]), M])
+        prop_thrusts = invA.dot(np.r_[np.array([[F]]), self.M])
         prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, maxF/4), minF/4)
         F = np.sum(prop_thrusts_clamped)
-        M = A[1:].dot(prop_thrusts_clamped)
-        self.state = integrate.odeint(self.state_dot, self.state, [0,self.dt], args = (F, M))[1]
+        self.M = A[1:].dot(prop_thrusts_clamped)
+        self.state = integrate.odeint(self.state_dot, self.state, [0,self.dt], args = (F,self.M))[1]
 
         self.time += self.dt
 
         if(self.time>self.T):
             self.done = True
 
-        return self.state, self._get_reward(), self.done
+        return self.state, self._get_reward(), self.done, {}
 
     def trajectory(self, v):
         """ The function takes known number of waypoints and time, then generates a
