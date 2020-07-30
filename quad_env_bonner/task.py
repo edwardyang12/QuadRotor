@@ -9,7 +9,7 @@ import gym
 
 env = gym.make('quadcopter-v4')
 
-num_episodes = 500
+num_episodes = 1000
 agent = DDGP(env)
 best_score = -1000
 best_x = 0
@@ -28,7 +28,7 @@ for i_episode in range(1, num_episodes+1):
     score = 0
     while True:
         action = agent.act(state)
-        next_state, reward, done = env.step(action)
+        next_state, reward, done, _ = env.step(action)
         agent.step(action, reward, next_state, done)
         env.render()
         state = next_state
