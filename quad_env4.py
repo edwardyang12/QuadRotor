@@ -27,7 +27,7 @@ I_x = 1 / 12. * mass * (height**2 + width**2)
 I_y = 1 / 12. * mass * (height**2 + length**2)  # 0.0112 was a measured value
 I_z = 1 / 12. * mass * (width**2 + length**2)
 
-env_bounds = 200.0  # 300 m / 300 m / 300 m
+env_bounds = 50.0  # 300 m / 300 m / 300 m
 
 class QuadRotorEnv(gym.Env):
     metadata = {
@@ -37,12 +37,11 @@ class QuadRotorEnv(gym.Env):
 
     def __init__(self):
 
-        self.runtime = 25
-        self.divides = 1
-
+        self.divides = 15
+        
         self.action_repeat = 1
 
-        self.dt = 1 / 10.0
+        self.dt = 1/50.0
 
         self.dims = np.array([width, length, height])  # x, y, z dimensions of quadcopter
         self.areas = np.array([length * height, width * height, width * length])
@@ -61,11 +60,11 @@ class QuadRotorEnv(gym.Env):
         self.state_size = self.action_repeat * 6
         self.lower_bounds = np.array([-env_bounds / 2, -env_bounds / 2, 0])
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
-        # pos (x,y,z), vel, acceleration
-        high = np.array([env_bounds / 2, env_bounds / 2, env_bounds,10,10,10, 100,100,100],
-                        dtype=np.float32)
-        low = np.array([-env_bounds / 2, -env_bounds / 2,0, -100,-10,-10, -10,-100,-100],
-                        dtype=np.float32)
+        # pos (x,y,z), distance, vel
+        high = np.concatenate([np.array([env_bounds / 2, env_bounds / 2, env_bounds, env_bounds , env_bounds, env_bounds,10,10,10],
+                        dtype=np.float32)] * self.action_repeat)
+        low = np.concatenate([np.array([-env_bounds / 2, -env_bounds / 2, 0, -env_bounds , -env_bounds, -env_bounds,-10,-10,-10],
+                        dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
             high = high,
@@ -82,7 +81,7 @@ class QuadRotorEnv(gym.Env):
         ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
         ax.plot([], [], [], '.', c='red', markersize=4)[0]
         ax.plot([], [], [], '.', c='blue', markersize=2)[0]
-        set_limit((-100,100), (-100,100), (0,200))
+        set_limit((-env_bounds/2,env_bounds/2), (-env_bounds/2,env_bounds/2), (0,env_bounds))
         plot_waypoints(np.array(self.traj_path))
         ax = plt.gca()
         self.lines = ax.get_lines()
@@ -99,6 +98,9 @@ class QuadRotorEnv(gym.Env):
             plt.pause(0.01)
 
     def get_trajectory(self):
+        self.path_index = 1
+        self.traj_path = []
+
         # traj = TrajectoryGenerator(self.pose[:3], self.final_pos, self.divides)
         # traj.solve()
         T = int(self.divides)
@@ -117,11 +119,15 @@ class QuadRotorEnv(gym.Env):
 
 
     def reset(self):
-        self.final_pos = [100,-20,130]
+        
+        self.final_pos = [20,-20,40]
+##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        z = random.uniform(20, env_bounds)
+##        self.final_pos = np.array([x,y,z])
         plt.close()
         # position + angular position (x, y, z, roll, pitch, yaw)
-        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
-        self.time = 0.0
+        self.pose = np.array([0.0, 0.0, 5.0, 0.0, 0.0, 0.0])
 
         self.v = np.array([0.0, 0.0, 0.0])
         self.angular_v = np.array([0.0, 0.0, 0.0])
@@ -129,24 +135,21 @@ class QuadRotorEnv(gym.Env):
         self.angular_accels = np.array([0.0, 0.0, 0.0])
         self.prop_wind_speed = np.array([0., 0., 0., 0.])
         self.done = False
-        self.path_index = 1
+        
         self.rotor_speeds = [0,0,0,0]
 
         self.xList = []
         self.yList = []
         self.zList = []
-        self.traj_path = []
-        self.passed = [1]
-        self.reachedpos = []
+        
+        
 
         self.get_trajectory()
         self.setupGraph()
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
-        # temp = (np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))
-        # return np.concatenate(([temp], self.v, self.linear_accel), axis=0)
-        # return np.concatenate([[temp]] * self.action_repeat )
-        return np.concatenate(((self.pose[:3] - self.traj_path[self.path_index]), self.v) * self.action_repeat, axis=0)
+        # return np.concatenate(([self.pose[0]/env_bounds*2,self.pose[1]/env_bounds*2,self.pose[2]/env_bounds*2-1], (self.pose[:3] - self.traj_path[self.path_index])/env_bounds, self.v/10), axis=0)
+        return np.concatenate([np.concatenate((self.pose[:3], (self.pose[:3] - self.traj_path[self.path_index]),self.v), axis=0)] * self.action_repeat)
 
     def _find_body_velocity(self):
         body_velocity = np.matmul(earth_to_body_frame(*list(self.pose[3:])), self.v)
@@ -207,15 +210,16 @@ class QuadRotorEnv(gym.Env):
     def _get_reward(self):
         """Uses current pose of sim to return reward."""
         reward = 0
-        # reward = (1 + self.path_index)* np.tanh(1 - 0.0005*(abs(self.pose[:3] - np.array(self.traj_path[self.path_index]))).sum())
-        # reward = - np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index]))
-        # reward = 1/(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))
-        for index, x in enumerate(self.passed):
-            if x<self.path_index:
-                # 2**x
-                reward += x/(np.linalg.norm((np.array(self.traj_path[self.path_index]) - np.array(self.reachedpos[index]))/env_bounds))
-            else:
-                reward += x/(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds))
+##        reward = np.tanh(1 - 1.2/np.sqrt(3)*(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds)))
+##        reward = (1 + self.path_index)* np.tanh(1 - 0.0005*(abs((self.pose[:3] - np.array(self.traj_path[self.path_index])))).sum())
+               # reward = 1/(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))
+##        for index, x in enumerate(self.passed):
+##            if x<self.path_index:
+##                # x
+##                reward += 2**x/(np.linalg.norm((np.array(self.traj_path[self.path_index]) - np.array(self.reachedpos[index]))/env_bounds)/np.sqrt(3))
+##            else:
+##                reward += 2**x/(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds)/np.sqrt(3))
+        reward = 1/(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds)/np.sqrt(3))
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -245,39 +249,33 @@ class QuadRotorEnv(gym.Env):
                 new_positions.append(position[ii])
 
         self.pose = np.array(new_positions + list(angles))
-        self.time += self.dt
 
         self._nearest_traj()
 
-        if self.time > self.runtime:
-            self.done = True
-        elif self.path_index == int(self.divides) and self._reached():
+        if self.path_index == int(self.divides) and self._reached():
             print("Reached end of path")
             self.done = True
-        else:
-            if self._reached():
-                self.path_index+=1
+       
         return self.done
 
     # computes nearest point further along than initial point
     def _nearest_traj(self):
         closest = self.path_index
-        sum = np.sqrt((self.pose[:3] - np.array(self.traj_path[closest]))**2).sum()
+        sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3)
         for index, coord in enumerate(self.traj_path):
-            compare = np.sqrt((self.pose[:3] - np.array(coord))**2).sum()
-            if(compare < sum and index > self.path_index):
+            compare = np.linalg.norm(self.pose[:3] - np.array(coord))/np.sqrt(3)
+            if((compare - sum)<2.5 and index > self.path_index):
                 closest = index
                 sum = compare
-        if closest != self.path_index:
-            self.passed.append(closest)
-            self.reachedpos.append(self.pose[:3])
-        self.path_index = closest
+        if(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3) > 2.5):
+            self.get_trajectory()
+        else:
+            self.path_index = closest
 
     # computes whether drone has reached target point in trajectory
     def _reached(self):
-        sum = np.sqrt((self.pose[:3] - np.array(self.traj_path[self.path_index]))**2).sum()
-        if(sum<1): # "1" is euclidian distance away ARBITRARY NUMBER
-            self.reachedpos.append(self.pose[:3])
+        sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index]))/np.sqrt(3)
+        if(sum<2.5): # "1" is euclidian distance away ARBITRARY NUMBER
             return True
         else:
             return False
@@ -287,14 +285,13 @@ class QuadRotorEnv(gym.Env):
         """Uses action to obtain next state, reward, done."""
         reward = 0
         pose_all = []
+        rotor_speeds = rotor_speeds * self.max_rotor_speed
         for _ in range(self.action_repeat):
             self._next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += (self._get_reward() / self.action_repeat)
-            # temp = (np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))
-            # pose_all.append(np.concatenate(([temp], self.v, self.linear_accel), axis=0))
+            reward += self._get_reward()
+            # pose_all.append(np.concatenate(([self.pose[0]/env_bounds*2,self.pose[1]/env_bounds*2,self.pose[2]/env_bounds*2-1], (self.pose[:3] - self.traj_path[self.path_index])/env_bounds, self.v/10), axis=0))
             # pose_all.append(self.pose[:3])
-            pose_all.append(np.concatenate(((self.pose[:3] - self.traj_path[self.path_index]), self.v), axis=0))
-            # pose_all.append([temp])
+            pose_all.append(np.concatenate((self.pose[:3], (self.pose[:3] - self.traj_path[self.path_index]),self.v), axis=0))
         next_state = np.concatenate(pose_all)
         return next_state, reward, self.done, {}
 

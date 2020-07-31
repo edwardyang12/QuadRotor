@@ -32,9 +32,9 @@ for i_episode in range(1, num_episodes+1):
         agent.step(action, reward, next_state, done)
         env.render()
         state = next_state
-        score = reward # * (env.time * 50)
+        # score = reward # * (env.time * 50)
         # score = reward / (50 * env.runtime)
-        # score += reward
+        score += reward
         # score = score / (env.time * 50)
         if score > best_score:
             best_x = env.pose[0]
