@@ -59,13 +59,12 @@ class QuadRotorEnv(gym.Env):
             dtype=np.float32
         )
 
-        self.state_size = self.action_repeat * 18
         self.lower_bounds = np.array([-env_bounds / 2, -env_bounds / 2, 0])
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
         # pos (x,y,z), distance, vel
-        high = np.concatenate([np.array([env_bounds / 2, env_bounds / 2, env_bounds, 7, 7,7, 30,30,30, 25, 25, 10,50,50,50],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., 45., 5., 10., 100.,100.,100.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-env_bounds / 2, -env_bounds / 2, 0, -7, -7,-7, -30, -30, -30, -25, -25, -40,-50,-50,-50],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -5., -45., -40.,-100.,-100.,-100.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -118,8 +117,8 @@ class QuadRotorEnv(gym.Env):
 
 
     def reset(self):
-        self.final_pos = [0.,0.,40.]
-##        self.final_pos = [-20,20,40]
+##        self.final_pos = [0.,0.,40.]
+        self.final_pos = [-20.,20.,40.]
 ##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
 ##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
 ##        z = random.uniform(20, env_bounds)
@@ -148,7 +147,7 @@ class QuadRotorEnv(gym.Env):
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
         distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-        return np.concatenate([np.concatenate((self.pose,self.angular_v,distance,self._find_body_velocity()), axis=0)] * self.action_repeat)
+        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self._find_body_velocity()), axis=0)] * self.action_repeat)
 
     def _find_body_velocity(self):
         body_velocity = np.matmul(earth_to_body_frame(*list(self.pose[3:])), self.v)
@@ -209,14 +208,14 @@ class QuadRotorEnv(gym.Env):
     def _get_reward_hover(self):
         reward = 0
        
-        xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/25)
-        yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/25)
-        zrewardpos = -np.e**(3.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40-3.5) + 1
+        xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/20)
+        yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/20)
+        zrewardpos = np.e**(-1.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40)
         rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
         rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1
         rewardvel = -np.linalg.norm(self._find_body_velocity()/50)/np.sqrt(3)+1
         rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
-        reward = rewardpos*0.5 + rewardangle*0.2 + rewardvel*0.15 + rewardangular*0.15
+        reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
         return reward
             
     def _get_reward_target(self):
@@ -245,10 +244,10 @@ class QuadRotorEnv(gym.Env):
         else:
 ##            xrewardpos = -np.e**(3.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds-3.5)+1
 ##            yrewardpos = -np.e**(3.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds-3.5)+1
-##            zrewardpos = np.e**(1.5*-np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/env_bounds)
-            xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds)
-            yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds)
-            zrewardpos = -np.e**(3.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/env_bounds-3.5) + 1
+            zrewardpos = np.e**(1.5*-np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40)
+            xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/45)
+            yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/45)
+##            zrewardpos = -np.e**(3.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40-3.5) + 1
 
 ##            xrewardpos = -np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds + 1
 ##            yrewardpos = -np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds + 1
@@ -294,9 +293,10 @@ class QuadRotorEnv(gym.Env):
         if self.runtime > self.T:
             self.done = True
 
-##        if self.path_index == int(self.divides) and self._reached():
-##            print("Reached end of path")
-##            self.done = True
+        # comment out if doing hover
+        if self.path_index == int(self.divides) and self._reached():
+            print("Reached end of path")
+            self.done = True
        
         return self.done
 
@@ -329,10 +329,10 @@ class QuadRotorEnv(gym.Env):
         pose_all = []
         for _ in range(self.action_repeat):
             self._next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self._get_reward_hover()/self.action_repeat
+            reward += self._get_reward_target()/self.action_repeat
             # pose_all.append(self.pose[:3])
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-            pose_all.append(np.concatenate((self.pose, self.angular_v, distance, self._find_body_velocity()), axis=0))
+            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance, self._find_body_velocity()), axis=0))
         next_state = np.concatenate(pose_all)
         return next_state, reward, self.done, {}
 
@@ -343,3 +343,4 @@ if __name__ == '__main__':
         if drone.done:
             break
         drone.render()
+    print(drone.pose)
