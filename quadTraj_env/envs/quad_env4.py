@@ -1,11 +1,12 @@
 # referenced from https://github.com/bonn0062/quadcopter2/blob/master/task.py
 
+# trajectory following
 import gym
 from gym import spaces
 import numpy as np
 import matplotlib.pyplot as plt
-from quad_env.envs.TrajectoryGenerator import earth_to_body_frame, body_to_earth_frame
-from quad_env.envs.quadPlot import set_limit, plot_waypoints
+from quadTraj_env.envs.TrajectoryGenerator import earth_to_body_frame, body_to_earth_frame
+from quadTraj_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import random
@@ -37,10 +38,15 @@ class QuadRotorEnv(gym.Env):
 
     def __init__(self):
 
+        self.final_pos = [-20.,20.,40.]
+        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
+
         self.divides = 1
 
         self.T = 5.
-        
+
+        self.viewer = None
+
         self.action_repeat = 1
 
         self.dt = 1/50.0
@@ -61,10 +67,11 @@ class QuadRotorEnv(gym.Env):
 
         self.lower_bounds = np.array([-env_bounds / 2, -env_bounds / 2, 0])
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
-        # pos (x,y,z), distance, vel
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., 45., 5., 10., 100.,100.,100.],
+
+        # orientation, angular_vel, distance, velocity
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 100.,100.,100.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -5., -45., -40.,-100.,-100.,-100.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[1],-100.,-100.,-100.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -74,9 +81,42 @@ class QuadRotorEnv(gym.Env):
 
         self.reset()
 
+    def reset(self):
+
+        self.close()
+##        self.final_pos = [0.,0.,40.]
+##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        z = random.uniform(20, env_bounds)
+##        self.final_pos = np.array([x,y,z])
+
+        # position + angular position (x, y, z, roll, pitch, yaw)
+        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
+
+        self.v = np.array([0.0, 0.0, 0.0])
+        self.angular_v = np.array([0.0, 0.0, 0.0])
+        self.linear_accel = np.array([0.0, 0.0, 0.0])
+        self.angular_accels = np.array([0.0, 0.0, 0.0])
+        self.prop_wind_speed = np.array([0., 0., 0., 0.])
+        self.done = False
+
+        self.rotor_speeds = [0,0,0,0]
+
+        self.runtime = 0
+
+        self.xList = []
+        self.yList = []
+        self.zList = []
+
+        self.get_trajectory()
+
+        # return np.concatenate([self.pose[:3]] * self.action_repeat )
+        distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
+        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self._find_body_velocity()), axis=0)] * self.action_repeat)
+
     def setupGraph(self):
-        self.fig = plt.figure()
-        ax = self.fig.add_axes([0, 0, 1, 1], projection='3d')
+        self.viewer = plt.figure()
+        ax = self.viewer.add_axes([0, 0, 1, 1], projection='3d')
         ax.plot([], [], [], '-', c='cyan')[0]
         ax.plot([], [], [], '-', c='red')[0]
         ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
@@ -89,14 +129,21 @@ class QuadRotorEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         if not close:
+            if self.viewer is None:
+                self.setupGraph()
             x,y,z = self.pose[:3]
             self.xList.append(x)
             self.yList.append(y)
             self.zList.append(z)
             self.lines[-1].set_data(self.xList, self.yList)
             self.lines[-1].set_3d_properties(self.zList)
-            self.fig.canvas.draw()
+            self.viewer.canvas.draw()
             plt.pause(0.01)
+
+    def close(self):
+        if self.viewer:
+            plt.close()
+            self.viewer=None
 
     def get_trajectory(self):
         self.path_index = 1
@@ -114,40 +161,6 @@ class QuadRotorEnv(gym.Env):
             tempx += dx
             tempy += dy
             tempz += dz
-
-
-    def reset(self):
-##        self.final_pos = [0.,0.,40.]
-        self.final_pos = [-20.,20.,40.]
-##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        z = random.uniform(20, env_bounds)
-##        self.final_pos = np.array([x,y,z])
-        plt.close()
-        # position + angular position (x, y, z, roll, pitch, yaw)
-        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
-
-        self.v = np.array([0.0, 0.0, 0.0])
-        self.angular_v = np.array([0.0, 0.0, 0.0])
-        self.linear_accel = np.array([0.0, 0.0, 0.0])
-        self.angular_accels = np.array([0.0, 0.0, 0.0])
-        self.prop_wind_speed = np.array([0., 0., 0., 0.])
-        self.done = False
-        
-        self.rotor_speeds = [0,0,0,0]
-
-        self.runtime = 0
-
-        self.xList = []
-        self.yList = []
-        self.zList = []
-
-        self.get_trajectory()
-        self.setupGraph()
-
-        # return np.concatenate([self.pose[:3]] * self.action_repeat )
-        distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self._find_body_velocity()), axis=0)] * self.action_repeat)
 
     def _find_body_velocity(self):
         body_velocity = np.matmul(earth_to_body_frame(*list(self.pose[3:])), self.v)
@@ -205,32 +218,13 @@ class QuadRotorEnv(gym.Env):
             thrusts.append(C_T * rho * n**2 * D**4)
         return thrusts
 
-    def _get_reward_hover(self):
-        reward = 0
-       
-        xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/20)
-        yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/20)
-        zrewardpos = np.e**(-1.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40)
-        rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
-        rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1
-        rewardvel = -np.linalg.norm(self._find_body_velocity()/50)/np.sqrt(3)+1
-        rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
-        reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
-        return reward
-            
     def _get_reward_target(self):
         """Uses current pose of sim to return reward."""
         reward = 0.
 ##        reward = np.tanh(1 - 1.2/np.sqrt(3)*(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds)))
 ##        reward = (1 + self.path_index)* np.tanh(1 - 0.0005*(abs((self.pose[:3] - np.array(self.traj_path[self.path_index])))).sum())
 ##        reward = -(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))/env_bounds/np.sqrt(3)
-##        for index, x in enumerate(self.passed):
-##            if x<self.path_index:
-##                # x
-##                reward += 2**x/(np.linalg.norm((np.array(self.traj_path[self.path_index]) - np.array(self.reachedpos[index]))/env_bounds)/np.sqrt(3))
-##            else:
-##                reward += 2**x/(np.linalg.norm((self.pose[:3] - np.array(self.traj_path[self.path_index]))/env_bounds)/np.sqrt(3))
-        
+
         if(self._reached()):
             reward = 1.
 
@@ -240,7 +234,7 @@ class QuadRotorEnv(gym.Env):
 ##            rewardpos = xrewardpos*0.5 + yrewardpos*0.5
 ##            #rewardvel = -(np.linalg.norm(self._find_body_velocity()))/np.sqrt(3)/50 + 1
 ##            reward = rewardpos#* 0.1 + rewardvel* 0.9
-            
+
         else:
 ##            xrewardpos = -np.e**(3.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds-3.5)+1
 ##            yrewardpos = -np.e**(3.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds-3.5)+1
@@ -297,7 +291,7 @@ class QuadRotorEnv(gym.Env):
         if self.path_index == int(self.divides) and self._reached():
             print("Reached end of path")
             self.done = True
-       
+
         return self.done
 
     # computes nearest point further along than initial point
@@ -328,6 +322,7 @@ class QuadRotorEnv(gym.Env):
         reward = 0
         pose_all = []
         for _ in range(self.action_repeat):
+            # print(rotor_speeds)
             self._next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self._get_reward_target()/self.action_repeat
             # pose_all.append(self.pose[:3])
