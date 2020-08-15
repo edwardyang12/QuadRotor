@@ -58,7 +58,8 @@ class QuadRotorEnv(gym.Env):
         self.max_rotor_speed = 900.
         self.action_space = spaces.Box(
             # rotor speeds of each propeller
-            low = np.array([-self.max_rotor_speed,-self.max_rotor_speed,-self.max_rotor_speed, -self.max_rotor_speed]),
+            # low = np.array([-self.max_rotor_speed,-self.max_rotor_speed,-self.max_rotor_speed, -self.max_rotor_speed]),
+            low = np.array([1.,1.,1.,1.]),
             high = np.array([self.max_rotor_speed, self.max_rotor_speed, self.max_rotor_speed, self.max_rotor_speed]),
             dtype=np.float32
         )
@@ -67,9 +68,9 @@ class QuadRotorEnv(gym.Env):
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
 
         # orientation, angular_vel, distance, velocity
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 100.,100.,100.],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 50.,50.,50.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[1],-100.,-100.,-100.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-50.,-50.,-50.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -205,9 +206,11 @@ class QuadRotorEnv(gym.Env):
     def _get_reward_hover(self):
         reward = 0
 
-        xrewardpos = np.e**(-1.5*np.abs(self.pose[0]- np.array(self.final_pos[0]))/20)
-        yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.final_pos[1]))/20)
-        zrewardpos = np.e**(-1.5*np.abs(self.pose[2]- np.array(self.final_pos[2]))/40)
+
+        xrewardpos = -np.abs(self.pose[0]- np.array(self.final_pos[0]))/25 + 1
+        yrewardpos = -np.abs(self.pose[1]- np.array(self.final_pos[1]))/25 + 1
+        zrewardpos = -np.abs(self.pose[2]- np.array(self.final_pos[2]))/40 + 1
+
         rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
 
         rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1

@@ -72,7 +72,7 @@ class QuadRotorEnv(gym.Env):
         # orientation, angular_vel, distance, velocity
         high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 100.,100.,100.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[1],-100.,-100.,-100.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-100.,-100.,-100.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -247,7 +247,7 @@ class QuadRotorEnv(gym.Env):
             xrewardpos = -np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/45 + 1
             yrewardpos = -np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/45 + 1
             zrewardpos = -np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40 + 1
-            rewardpos = xrewardpos*0.4 + yrewardpos*0.4 + zrewardpos * 0.2
+            rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
             # rewardpos = -(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))/env_bounds/np.sqrt(3) + 1
             # rewardangle = -(np.linalg.norm(self.pose[3:]))/np.sqrt(3)/7 + 1
             # rewardvel = -(np.linalg.norm(self._find_body_velocity()))/np.sqrt(3)/50 + 1
