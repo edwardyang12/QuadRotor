@@ -43,7 +43,7 @@ class QuadRotorEnv(gym.Env):
 
         self.divides = 1
 
-        self.T = 5.
+        self.T = 7.
 
         self.viewer = None
 
@@ -69,10 +69,10 @@ class QuadRotorEnv(gym.Env):
         self.lower_bounds = np.array([-env_bounds / 2, -env_bounds / 2, 0])
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
 
-        # orientation, angular_vel, distance, velocity
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 100.,100.,100.],
+        # orientation, angular_vel, distance, velocity, wind_speed
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 20.,20.,20.,50.,50.,50.,50.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-100.,-100.,-100.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-20.,-20.,-20.,-50.,-50.,-50.,-50.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -113,7 +113,7 @@ class QuadRotorEnv(gym.Env):
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
         distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self._find_body_velocity()), axis=0)] * self.action_repeat)
+        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self.v,self.prop_wind_speed), axis=0)] * self.action_repeat)
 
     def setupGraph(self):
         self.viewer = plt.figure()
@@ -328,7 +328,7 @@ class QuadRotorEnv(gym.Env):
             reward += self._get_reward_target()/self.action_repeat
             # pose_all.append(self.pose[:3])
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance, self._find_body_velocity()), axis=0))
+            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.prop_wind_speed), axis=0))
         next_state = np.concatenate(pose_all)
         return next_state, reward, self.done, {}
 
