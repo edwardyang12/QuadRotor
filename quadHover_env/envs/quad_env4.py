@@ -68,9 +68,9 @@ class QuadRotorEnv(gym.Env):
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
 
         # orientation, angular_vel, distance, velocity
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 20.,20.,20.,40.,40.,40.,40.],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 20.,20.,20.,40.,40.,40.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-20.,-20.,-20.,-40.,-40.,-40.,-40.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-20.,-20.,-20.,-40.,-40.,-40.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -114,7 +114,7 @@ class QuadRotorEnv(gym.Env):
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
         distance = [(self.pose[0] - self.final_pos[0]),(self.pose[1] - self.final_pos[1]),(self.pose[2]- self.final_pos[2])]
-        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self.v,self.prop_wind_speed), axis=0)] * self.action_repeat)
+        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self.v,self.linear_accel), axis=0)] * self.action_repeat)
 
     def setupGraph(self):
         self.viewer = plt.figure()
@@ -196,7 +196,7 @@ class QuadRotorEnv(gym.Env):
             V = self.prop_wind_speed[prop_number]
             D = propeller_size
             n = rotor_speeds[prop_number]
-            J = V / n * D
+            J = V / (n * D)
             #print(V, J, self.pose)
             # From http://m-selig.ae.illinois.edu/pubs/BrandtSelig-2011-AIAA-2011-1255-LRN-Propellers.pdf
             C_T = max(.12 - .07*max(0, J)-.1*max(0, J)**2, 0)
@@ -266,14 +266,26 @@ class QuadRotorEnv(gym.Env):
             reward += self._get_reward_hover()/self.action_repeat
             # pose_all.append(self.pose[:3])
             distance = [(self.pose[0] - self.final_pos[0]),(self.pose[1] - self.final_pos[1]),(self.pose[2]- self.final_pos[2])]
-            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance, self.v,self.prop_wind_speed), axis=0))
+            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance, self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
         return next_state, reward, self.done, {}
 
 if __name__ == '__main__':
     drone = QuadRotorEnv()
-    for i in range(1000):
-        print(drone.step([-900,-900,900,900]))
+    for i in range(56): #gain momentum
+        print(drone.step([900.,900.,900.,900.]))
+        if drone.done:
+            break
+        drone.render()
+    print("==============================") # ~88% of path is done and then its good
+    for i in range(75): # let glide
+        print(drone.step([0.01,0.01,0.01,0.01]))
+        if drone.done:
+            break
+        drone.render()
+    print("++++++++++++++++++++++++++++++")   
+    for i in range(75): # hover
+        print(drone.step([430.,430.,430.,430.]))
         if drone.done:
             break
         drone.render()
