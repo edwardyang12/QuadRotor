@@ -43,7 +43,7 @@ class QuadRotorEnv(gym.Env):
 
         self.divides = 1
 
-        self.T = 7.
+        self.T = 9.
 
         self.viewer = None
 
@@ -70,9 +70,9 @@ class QuadRotorEnv(gym.Env):
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
 
         # orientation, angular_vel, distance, velocity, wind_speed
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 20.,20.,20.,50.,50.,50.,50.],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 25.,25.,25.,40.,40.,40.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-20.,-20.,-20.,-50.,-50.,-50.,-50.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-25.,-25.,-25.,-40.,-40.,-40.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -113,7 +113,7 @@ class QuadRotorEnv(gym.Env):
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
         distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self.v,self.prop_wind_speed), axis=0)] * self.action_repeat)
+        return np.concatenate([np.concatenate((self.pose[3:],self.angular_v,distance,self.v,self.linear_accel), axis=0)] * self.action_repeat)
 
     def setupGraph(self):
         self.viewer = plt.figure()
@@ -212,7 +212,7 @@ class QuadRotorEnv(gym.Env):
             V = self.prop_wind_speed[prop_number]
             D = propeller_size
             n = rotor_speeds[prop_number]
-            J = V / n * D
+            J = V / (n * D)
             #print(V, J, self.pose)
             # From http://m-selig.ae.illinois.edu/pubs/BrandtSelig-2011-AIAA-2011-1255-LRN-Propellers.pdf
             C_T = max(.12 - .07*max(0, J)-.1*max(0, J)**2, 0)
@@ -229,13 +229,6 @@ class QuadRotorEnv(gym.Env):
         if(self._reached()):
             reward = 1.
 
-##        elif (self.pose[2]- np.array(self.traj_path[self.path_index][2]))>0:
-##            xrewardpos = np.e**(-3.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds)
-##            yrewardpos = np.e**(-3.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds)
-##            rewardpos = xrewardpos*0.5 + yrewardpos*0.5
-##            #rewardvel = -(np.linalg.norm(self._find_body_velocity()))/np.sqrt(3)/50 + 1
-##            reward = rewardpos#* 0.1 + rewardvel* 0.9
-
         else:
 ##            xrewardpos = -np.e**(3.5*np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/env_bounds-3.5)+1
 ##            yrewardpos = -np.e**(3.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/env_bounds-3.5)+1
@@ -247,11 +240,14 @@ class QuadRotorEnv(gym.Env):
             xrewardpos = -np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/45 + 1
             yrewardpos = -np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/45 + 1
             zrewardpos = -np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40 + 1
-            rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
+            rewardpos = xrewardpos*0.4 + yrewardpos*0.4 + zrewardpos * 0.2
             # rewardpos = -(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))/env_bounds/np.sqrt(3) + 1
-            # rewardangle = -(np.linalg.norm(self.pose[3:]))/np.sqrt(3)/7 + 1
-            # rewardvel = -(np.linalg.norm(self._find_body_velocity()))/np.sqrt(3)/50 + 1
-            reward = rewardpos #* 0.9 + rewardvel* 0.1
+
+            rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1
+            rewardvel = -np.linalg.norm(self.v/25)/np.sqrt(3)+1
+            rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
+
+            reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -328,14 +324,14 @@ class QuadRotorEnv(gym.Env):
             reward += self._get_reward_target()/self.action_repeat
             # pose_all.append(self.pose[:3])
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
-            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.prop_wind_speed), axis=0))
+            pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
         return next_state, reward, self.done, {}
 
 if __name__ == '__main__':
     drone = QuadRotorEnv()
     for i in range(1000):
-        print(drone.step([900.,1.,900.,1.]))
+        print(drone.step([1.,900.,1.,900.]))
         if drone.done:
             break
         drone.render()
