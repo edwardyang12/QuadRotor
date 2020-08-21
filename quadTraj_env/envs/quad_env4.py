@@ -4,12 +4,13 @@
 import gym
 from gym import spaces
 import numpy as np
-import matplotlib.pyplot as plt
 from quadTraj_env.envs.TrajectoryGenerator import earth_to_body_frame, body_to_earth_frame
 from quadTraj_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import random
+import time
 
 # simulation parameters
 gravity = -9.81 # gravity
@@ -49,7 +50,7 @@ class QuadRotorEnv(gym.Env):
 
         self.action_repeat = 1
 
-        self.dt = 1/50.0
+        self.dt = 1/30.0
 
         self.dims = np.array([width, length, height])  # x, y, z dimensions of quadcopter
         self.areas = np.array([length * height, width * height, width * length])
@@ -140,6 +141,26 @@ class QuadRotorEnv(gym.Env):
             self.lines[-1].set_3d_properties(self.zList)
             self.viewer.canvas.draw()
             plt.pause(0.01)
+
+
+    def anim_callback(self,i):
+        self.lines[-1].set_data(self.xList[:i], self.yList[:i])
+        self.lines[-1].set_3d_properties(self.zList[:i])
+        
+    # saves video
+    def save(self, saved = True):
+        if not saved:
+            return
+        self.close()
+        self.setupGraph()
+        an = animation.FuncAnimation(self.viewer,
+                                 self.anim_callback,
+                                 init_func=None,
+                                 frames=400, interval=10, blit=False)
+        print ("saving")
+        now = time.time()
+        name = "traj" + str(int(now)) + ".gif"
+        an.save(name, dpi=80, writer='pillow', fps=60)
 
     def close(self):
         if self.viewer:
@@ -284,7 +305,6 @@ class QuadRotorEnv(gym.Env):
         if self.runtime > self.T:
             self.done = True
 
-        # comment out if doing hover
         if self.path_index == int(self.divides) and self._reached():
             print("Reached end of path")
             self.done = True
@@ -300,10 +320,10 @@ class QuadRotorEnv(gym.Env):
             if((compare - sum)<2.5 and index > self.path_index):
                 closest = index
                 sum = compare
-        if(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3) > 2.5):
-            self.get_trajectory()
-        else:
-            self.path_index = closest
+##        if(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3) > 2.5):
+##            self.get_trajectory()
+##        else:
+        self.path_index = closest
 
     # computes whether drone has reached target point in trajectory
     def _reached(self):
@@ -319,19 +339,20 @@ class QuadRotorEnv(gym.Env):
         reward = 0
         pose_all = []
         for _ in range(self.action_repeat):
-            # print(rotor_speeds)
             self._next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self._get_reward_target()/self.action_repeat
             # pose_all.append(self.pose[:3])
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
             pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
+
         return next_state, reward, self.done, {}
 
 if __name__ == '__main__':
     drone = QuadRotorEnv()
     for i in range(1000):
-        print(drone.step([1.,900.,1.,900.]))
+        #print(drone.step([1.,900.,1.,900.]))
+        drone.step([1.,850.,1.,850])
         if drone.done:
             break
         drone.render()
