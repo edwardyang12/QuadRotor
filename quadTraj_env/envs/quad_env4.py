@@ -39,18 +39,17 @@ class QuadRotorEnv(gym.Env):
 
     def __init__(self):
 
-        self.final_pos = [-20.,20.,40.]
         self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
 
         self.divides = 1
 
-        self.T = 9.
+        self.T = 10.
 
         self.viewer = None
 
         self.action_repeat = 1
 
-        self.dt = 1/30.0
+        self.dt = 1/15.0
 
         self.dims = np.array([width, length, height])  # x, y, z dimensions of quadcopter
         self.areas = np.array([length * height, width * height, width * length])
@@ -70,6 +69,16 @@ class QuadRotorEnv(gym.Env):
         self.lower_bounds = np.array([-env_bounds / 2, -env_bounds / 2, 0])
         self.upper_bounds = np.array([env_bounds / 2, env_bounds / 2, env_bounds])
 
+        self.reset()
+
+    def reset(self):
+
+        self.final_pos = [-20.,20.,40.]
+##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        z = random.uniform(20., env_bounds)
+##        self.final_pos = np.array([x,y,z])
+
         # orientation, angular_vel, distance, velocity, wind_speed
         high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 25.,25.,25.,40.,40.,40.],
                         dtype=np.float32)] * self.action_repeat)
@@ -81,16 +90,11 @@ class QuadRotorEnv(gym.Env):
             dtype=np.float32
         )
 
-        self.reset()
-
-    def reset(self):
+        self.xfactor = max(np.abs(env_bounds/2-self.final_pos[0]),np.abs(-env_bounds/2-self.final_pos[0]))
+        self.yfactor = max(np.abs(env_bounds/2-self.final_pos[1]),np.abs(-env_bounds/2-self.final_pos[1]))
+        self.zfactor = max(np.abs(env_bounds-self.final_pos[2]), np.abs(0-self.final_pos[2]))
 
         self.close()
-##        self.final_pos = [0.,0.,40.]
-##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        z = random.uniform(20, env_bounds)
-##        self.final_pos = np.array([x,y,z])
 
         # position + angular position (x, y, z, roll, pitch, yaw)
         self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
@@ -109,6 +113,10 @@ class QuadRotorEnv(gym.Env):
         self.xList = []
         self.yList = []
         self.zList = []
+
+        self.renderXList = []
+        self.renderYList = []
+        self.renderZList = []
 
         self.get_trajectory()
 
@@ -258,9 +266,10 @@ class QuadRotorEnv(gym.Env):
 ##            yrewardpos = np.e**(-1.5*np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/45)
 ##            zrewardpos = -np.e**(3.5*np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40-3.5) + 1
 
-            xrewardpos = -np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/45 + 1
-            yrewardpos = -np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/45 + 1
-            zrewardpos = -np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/40 + 1
+            
+            xrewardpos = -np.abs(self.pose[0]- np.array(self.traj_path[self.path_index][0]))/self.xfactor + 1
+            yrewardpos = -np.abs(self.pose[1]- np.array(self.traj_path[self.path_index][1]))/self.yfactor + 1
+            zrewardpos = -np.abs(self.pose[2]- np.array(self.traj_path[self.path_index][2]))/self.zfactor + 1
             rewardpos = xrewardpos*0.4 + yrewardpos*0.4 + zrewardpos * 0.2
             # rewardpos = -(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))/env_bounds/np.sqrt(3) + 1
 
@@ -269,6 +278,7 @@ class QuadRotorEnv(gym.Env):
             rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
 
             reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
+
         return reward
 
     def _next_timestep(self, rotor_speeds):
@@ -329,6 +339,9 @@ class QuadRotorEnv(gym.Env):
     def _reached(self):
         sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index]))/np.sqrt(3)
         if(sum<2.5): # "1" is euclidian distance away ARBITRARY NUMBER
+            self.renderXList = self.xList
+            self.renderYList = self.yList
+            self.renderZList = self.zList
             return True
         else:
             return False
@@ -345,6 +358,9 @@ class QuadRotorEnv(gym.Env):
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
             pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
+
+        if self.done and self._reached():
+            self.save()
 
         return next_state, reward, self.done, {}
 
