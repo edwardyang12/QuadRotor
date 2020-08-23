@@ -114,10 +114,6 @@ class QuadRotorEnv(gym.Env):
         self.yList = []
         self.zList = []
 
-        self.renderXList = []
-        self.renderYList = []
-        self.renderZList = []
-
         self.get_trajectory()
 
         # return np.concatenate([self.pose[:3]] * self.action_repeat )
@@ -339,9 +335,6 @@ class QuadRotorEnv(gym.Env):
     def _reached(self):
         sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index]))/np.sqrt(3)
         if(sum<2.5): # "1" is euclidian distance away ARBITRARY NUMBER
-            self.renderXList = self.xList
-            self.renderYList = self.yList
-            self.renderZList = self.zList
             return True
         else:
             return False
@@ -358,9 +351,6 @@ class QuadRotorEnv(gym.Env):
             distance = [(self.pose[0] - self.traj_path[self.path_index][0]),(self.pose[1] - self.traj_path[self.path_index][1]),(self.pose[2]- self.traj_path[self.path_index][2])]
             pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance,self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
-
-        if self.done and self._reached():
-            self.save()
 
         return next_state, reward, self.done, {}
 
