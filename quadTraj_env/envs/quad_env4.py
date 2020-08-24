@@ -43,7 +43,7 @@ class QuadRotorEnv(gym.Env):
 
         self.divides = 1
 
-        self.T = 10.
+        self.T = 8.
 
         self.viewer = None
 
@@ -73,16 +73,16 @@ class QuadRotorEnv(gym.Env):
 
     def reset(self):
 
-        self.final_pos = [-20.,20.,40.]
-##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
-##        z = random.uniform(20., env_bounds)
-##        self.final_pos = np.array([x,y,z])
+##        self.final_pos = [-20.,20.,40.]
+        x = random.uniform(-env_bounds / 2, env_bounds / 2)
+        y = random.uniform(-env_bounds / 2, env_bounds / 2)
+        z = random.uniform(20., env_bounds)
+        self.final_pos = np.array([x,y,z])
 
         # orientation, angular_vel, distance, velocity, wind_speed
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0], env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 25.,25.,25.,40.,40.,40.],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds, env_bounds, env_bounds, 25.,25.,25.,40.,40.,40.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-25.,-25.,-25.,-40.,-40.,-40.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds, -env_bounds, -env_bounds,-25.,-25.,-25.,-40.,-40.,-40.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
