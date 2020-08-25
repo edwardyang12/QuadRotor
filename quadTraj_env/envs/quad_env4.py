@@ -73,16 +73,16 @@ class QuadRotorEnv(gym.Env):
 
     def reset(self):
 
-##        self.final_pos = [-20.,20.,40.]
-        x = random.uniform(-env_bounds / 2, env_bounds / 2)
-        y = random.uniform(-env_bounds / 2, env_bounds / 2)
-        z = random.uniform(20., env_bounds)
-        self.final_pos = np.array([x,y,z])
+        self.final_pos = [-20.,20.,40.]
+##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
+##        z = random.uniform(20., env_bounds)
+##        self.final_pos = np.array([x,y,z])
 
         # orientation, angular_vel, distance, velocity, wind_speed
-        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds, env_bounds, env_bounds, 25.,25.,25.,40.,40.,40.],
+        high = np.concatenate([np.array([7., 7.,7., 30., 30., 30., env_bounds/2-self.final_pos[0],env_bounds/2-self.final_pos[1], env_bounds-self.final_pos[2], 30.,30.,30.,40.,40.,40.],
                         dtype=np.float32)] * self.action_repeat)
-        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds, -env_bounds, -env_bounds,-25.,-25.,-25.,-40.,-40.,-40.],
+        low = np.concatenate([np.array([-7., -7.,-7., -30., -30., -30., -env_bounds/2-self.final_pos[0], -env_bounds/2-self.final_pos[1], 0-self.final_pos[2],-30.,-30.,-30.,-40.,-40.,-40.],
                         dtype=np.float32)] *self.action_repeat)
         self.observation_space = spaces.Box(
             low = low,
@@ -269,11 +269,12 @@ class QuadRotorEnv(gym.Env):
             rewardpos = xrewardpos*0.4 + yrewardpos*0.4 + zrewardpos * 0.2
             # rewardpos = -(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index])))/env_bounds/np.sqrt(3) + 1
 
-            rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1
-            rewardvel = -np.linalg.norm(self.v/25)/np.sqrt(3)+1
-            rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
+            # rewardangle = -np.linalg.norm(self.pose[3:]/7.)/np.sqrt(3) + 1
+            rewardacc = -np.linalg.norm(self.linear_accel/40.)/np.sqrt(3) + 1
+            rewardvel = -np.linalg.norm(self.v/30.)/np.sqrt(3)+1
+            rewardangular =  -np.linalg.norm(self.angular_v/30.)/np.sqrt(3)+ 1
 
-            reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
+            reward = rewardpos*0.8 + rewardacc*0.05 + rewardvel*0.1 + rewardangular*0.05
 
         return reward
 
