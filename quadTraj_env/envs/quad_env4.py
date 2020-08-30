@@ -41,7 +41,7 @@ class QuadRotorEnv(gym.Env):
 
         self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
 
-        self.divides = 4
+        self.divides = 2
 
         self.T = 8.
 
@@ -74,7 +74,7 @@ class QuadRotorEnv(gym.Env):
 
 ##        self.final_pos = [-20.,20.,40.]
 
-        self.final_pos = [20.,0.,40.]
+        self.final_pos = [-20.,0.,25.]
         
 ##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
 ##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
@@ -183,7 +183,7 @@ class QuadRotorEnv(gym.Env):
         T = int(self.divides)
 
         # circular path
-        self.traj_path = [self.pose[:3],[0.,20.,17.5],[-20.,0.,25.],[0.,-20.,32.5],self.final_pos]
+        self.traj_path = [self.pose[:3],[0.,20.,17.5],[-20.,0.,25.]]
 
     
         # linear path
@@ -314,7 +314,6 @@ class QuadRotorEnv(gym.Env):
 
         self.pose = np.array(new_positions + list(angles))
 
-        self._nearest_traj()
         self.runtime += self.dt
 
         if self.runtime > self.T:
@@ -323,26 +322,15 @@ class QuadRotorEnv(gym.Env):
         if self.path_index == int(self.divides) and self._reached():
             print("Reached end of path")
             self.done = True
+        elif self._reached():
+            print("Reached first midpoint")
+            self.path_index += 1
+            self.xfactor = max(np.abs(env_bounds/2-self.traj_path[self.path_index][0]),np.abs(-env_bounds/2-self.traj_path[self.path_index][0]))
+            self.yfactor = max(np.abs(env_bounds/2-self.traj_path[self.path_index][1]),np.abs(-env_bounds/2-self.traj_path[self.path_index][1]))
+            self.zfactor = max(np.abs(env_bounds-self.traj_path[self.path_index][2]), np.abs(0-self.traj_path[self.path_index][2]))
 
         return self.done
-
-    # computes nearest point further along than initial point
-    def _nearest_traj(self):
-        closest = self.path_index
-        sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3)
-        for index, coord in enumerate(self.traj_path):
-            compare = np.linalg.norm(self.pose[:3] - np.array(coord))/np.sqrt(3)
-            if((compare - sum)<2 and index > self.path_index):
-                closest = index
-                sum = compare
-##        if(np.linalg.norm(self.pose[:3] - np.array(self.traj_path[closest]))/np.sqrt(3) > 2.5):
-##            self.get_trajectory()
-##        else:
-        self.path_index = closest
-        self.xfactor = max(np.abs(env_bounds/2-self.traj_path[self.path_index][0]),np.abs(-env_bounds/2-self.traj_path[self.path_index][0]))
-        self.yfactor = max(np.abs(env_bounds/2-self.traj_path[self.path_index][1]),np.abs(-env_bounds/2-self.traj_path[self.path_index][1]))
-        self.zfactor = max(np.abs(env_bounds-self.traj_path[self.path_index][2]), np.abs(0-self.traj_path[self.path_index][2]))
-
+        
     # computes whether drone has reached target point in trajectory
     def _reached(self):
         sum = np.linalg.norm(self.pose[:3] - np.array(self.traj_path[self.path_index]))/np.sqrt(3)
