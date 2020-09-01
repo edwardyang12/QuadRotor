@@ -41,7 +41,7 @@ class QuadRotorEnv(gym.Env):
 
         self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
 
-        self.divides = 2
+        self.divides = 1
 
         self.T = 8.
 
@@ -72,9 +72,9 @@ class QuadRotorEnv(gym.Env):
 
     def reset(self):
 
-##        self.final_pos = [-20.,20.,40.]
+        self.final_pos = [-20.,20.,40.]
 
-        self.final_pos = [-20.,0.,25.]
+##        self.final_pos = [-20.,0.,25.]
         
 ##        x = random.uniform(-env_bounds / 2, env_bounds / 2)
 ##        y = random.uniform(-env_bounds / 2, env_bounds / 2)
@@ -183,21 +183,22 @@ class QuadRotorEnv(gym.Env):
         T = int(self.divides)
 
         # circular path
-        self.traj_path = [self.pose[:3],[0.,20.,17.5],[-20.,0.,25.]]
+##        self.traj_path = [self.pose[:3],[0.,20.,17.5],[-20.,0.,25.]]
+##        self.traj_path = [self.pose[:3],[0.,20.,17.5],[-20.,0.,25.],[0.,-20.,32.5],[20.,0.,40.]]
 
     
         # linear path
-##        dx = (self.final_pos[0] - self.pose[0])/self.divides
-##        dy = (self.final_pos[1] - self.pose[1])/self.divides
-##        dz = (self.final_pos[2] - self.pose[2])/self.divides
-##        tempx = self.pose[0]
-##        tempy = self.pose[1]
-##        tempz = self.pose[2]
-##        for i in range(T+1):
-##            self.traj_path.append([tempx,tempy,tempz])
-##            tempx += dx
-##            tempy += dy
-##            tempz += dz
+        dx = (self.final_pos[0] - self.pose[0])/self.divides
+        dy = (self.final_pos[1] - self.pose[1])/self.divides
+        dz = (self.final_pos[2] - self.pose[2])/self.divides
+        tempx = self.pose[0]
+        tempy = self.pose[1]
+        tempz = self.pose[2]
+        for i in range(T+1):
+            self.traj_path.append([tempx,tempy,tempz])
+            tempx += dx
+            tempy += dy
+            tempz += dz
 
     def _find_body_velocity(self):
         body_velocity = np.matmul(earth_to_body_frame(*list(self.pose[3:])), self.v)
