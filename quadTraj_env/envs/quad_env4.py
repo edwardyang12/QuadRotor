@@ -342,6 +342,7 @@ class QuadRotorEnv(gym.Env):
 
 
     def step(self, rotor_speeds):
+        rotor_speeds = np.clip(rotor_speeds, a_min = 1., a_max = 900.)
         """Uses action to obtain next state, reward, done."""
         reward = 0
         pose_all = []
