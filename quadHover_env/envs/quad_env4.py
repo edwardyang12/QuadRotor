@@ -9,7 +9,9 @@ from quadHover_env.envs.TrajectoryGenerator import earth_to_body_frame, body_to_
 from quadHover_env.envs.quadPlot import set_limit, plot_waypoints
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import random
+import time
 
 # simulation parameters
 gravity = -9.81 # gravity
@@ -41,13 +43,13 @@ class QuadRotorEnv(gym.Env):
         self.final_pos = [0.,0.,40.]
         self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
 
-        self.T = 5.
+        self.T = 7.
 
         self.viewer = None
 
         self.action_repeat = 1
 
-        self.dt = 1/15.
+        self.dt = 1/15.0
 
         self.dims = np.array([width, length, height])  # x, y, z dimensions of quadcopter
         self.areas = np.array([length * height, width * height, width * length])
@@ -119,9 +121,6 @@ class QuadRotorEnv(gym.Env):
     def setupGraph(self):
         self.viewer = plt.figure()
         ax = self.viewer.add_axes([0, 0, 1, 1], projection='3d')
-        ax.plot([], [], [], '-', c='cyan')[0]
-        ax.plot([], [], [], '-', c='red')[0]
-        ax.plot([], [], [], '-', c='blue', marker='o', markevery=2)[0]
         ax.plot([], [], [], '.', c='red', markersize=4)[0]
         ax.plot([], [], [], '.', c='blue', markersize=2)[0]
         set_limit((-env_bounds/2,env_bounds/2), (-env_bounds/2,env_bounds/2), (0,env_bounds))
@@ -141,6 +140,26 @@ class QuadRotorEnv(gym.Env):
             self.lines[-1].set_3d_properties(self.zList)
             self.viewer.canvas.draw()
             plt.pause(0.01)
+
+
+    def anim_callback(self,i):
+        self.lines[-1].set_data(self.xList[:i], self.yList[:i])
+        self.lines[-1].set_3d_properties(self.zList[:i])
+        
+    # saves video
+    def save(self, saved = True):
+        if not saved:
+            return
+        self.close()
+        self.setupGraph()
+        an = animation.FuncAnimation(self.viewer,
+                                 self.anim_callback,
+                                 init_func=None,
+                                 frames=400, interval=10, blit=False)
+        print ("saving")
+        now = time.time()
+        name = "hover" + str(int(now)) + ".gif"
+        an.save(name, dpi=80, writer='pillow', fps=60)
 
     def close(self):
         if self.viewer:
@@ -207,17 +226,17 @@ class QuadRotorEnv(gym.Env):
         reward = 0
 
 
-        xrewardpos = -np.abs(self.pose[0]- np.array(self.final_pos[0]))/25. + 1
-        yrewardpos = -np.abs(self.pose[1]- np.array(self.final_pos[1]))/25. + 1
-        zrewardpos = -np.abs(self.pose[2]- np.array(self.final_pos[2]))/40. + 1
+        xrewardpos = -np.abs(self.pose[0]- np.array(self.final_pos[0]))/25 + 1
+        yrewardpos = -np.abs(self.pose[1]- np.array(self.final_pos[1]))/25 + 1
+        zrewardpos = -np.abs(self.pose[2]- np.array(self.final_pos[2]))/40 + 1
 
         rewardpos = xrewardpos*0.3 + yrewardpos*0.3 + zrewardpos * 0.4
 
-        rewardacc = -np.linalg.norm(self.linear_accel/40.)/np.sqrt(3) + 1
-        rewardvel = -np.linalg.norm(self.v/30.)/np.sqrt(3)+1
-        rewardangular =  -np.linalg.norm(self.angular_v/30.)/np.sqrt(3)+ 1
+        rewardangle = -np.linalg.norm(self.pose[3:]/7)/np.sqrt(3) + 1
+        rewardvel = -np.linalg.norm(self.v/30)/np.sqrt(3)+1
+        rewardangular =  -np.linalg.norm(self.angular_v/30)/np.sqrt(3)+ 1
 
-        reward = rewardpos*0.8 + rewardacc*0.05 + rewardvel*0.1 + rewardangular*0.05
+        reward = rewardpos*0.8 + rewardangle*0.1 + rewardvel*0.05 + rewardangular*0.05
 
         return reward
 
@@ -260,6 +279,7 @@ class QuadRotorEnv(gym.Env):
         """Uses action to obtain next state, reward, done."""
         reward = 0
         pose_all = []
+        rotor_speeds = np.clip(rotor_speeds, a_min = 1., a_max = 900.)
         for _ in range(self.action_repeat):
             # print(rotor_speeds)
             self._next_timestep(rotor_speeds) # update the sim pose and velocities
@@ -268,6 +288,7 @@ class QuadRotorEnv(gym.Env):
             distance = [(self.pose[0] - self.final_pos[0]),(self.pose[1] - self.final_pos[1]),(self.pose[2]- self.final_pos[2])]
             pose_all.append(np.concatenate((self.pose[3:], self.angular_v, distance, self.v,self.linear_accel), axis=0))
         next_state = np.concatenate(pose_all)
+
         return next_state, reward, self.done, {}
 
 if __name__ == '__main__':
@@ -284,8 +305,8 @@ if __name__ == '__main__':
             break
         drone.render()
     print("++++++++++++++++++++++++++++++")   
-    for i in range(75): # hover
-        print(drone.step([430.,430.,430.,430.]))
+    while(True): # hover
+        print(drone.step([420.,420.,420.,420.]))
         if drone.done:
             break
         drone.render()
